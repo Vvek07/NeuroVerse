@@ -14,5 +14,6 @@ xgboost
 tensorflow
 keras
 pydantic[email]
+bcrypt==4.1.3
 passlib[bcrypt]
 python-jose[cryptography]
