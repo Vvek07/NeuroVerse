@@ -15,17 +15,10 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS configuration
-# Allow localhost for development and Vercel for production
-origins = [
-    "http://localhost:3000",
-    "https://neuroverse-seven.vercel.app",  # Your Vercel production URL
-    "https://*.vercel.app"  # All Vercel preview deployments
-]
-
+# CORS configuration - Allow all Vercel deployments
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],  # Allow all origins for now (demo purpose)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
