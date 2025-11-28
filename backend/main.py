@@ -16,7 +16,12 @@ app = FastAPI(
 )
 
 # CORS configuration
-origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+# Allow localhost for development and Vercel for production
+origins = [
+    "http://localhost:3000",
+    "https://neuroverse-seven.vercel.app",  # Your Vercel production URL
+    "https://*.vercel.app"  # All Vercel preview deployments
+]
 
 app.add_middleware(
     CORSMiddleware,
