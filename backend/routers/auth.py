@@ -38,11 +38,14 @@ async def register(user_data: UserRegister):
             raise HTTPException(status_code=400, detail="Email already registered")
         
         # Create user
+        # Truncate password to 72 bytes (bcrypt limit)
+        truncated_password = user_data.password[:72] if len(user_data.password) > 72 else user_data.password
+        
         user_doc = {
             "_id": str(ObjectId()),
             "name": user_data.name,
             "email": user_data.email,
-            "password_hash": get_password_hash(user_data.password),
+            "password_hash": get_password_hash(truncated_password),
             "role": "user",
             "created_at": datetime.utcnow(),
             "total_predictions": 0,
@@ -82,8 +85,9 @@ async def login(credentials: UserLogin):
         if not user:
             raise HTTPException(status_code=401, detail="Invalid email or password")
         
-        # Verify password
-        if not verify_password(credentials.password, user["password_hash"]):
+        # Verify password (truncate to 72 bytes for bcrypt)
+        truncated_password = credentials.password[:72] if len(credentials.password) > 72 else credentials.password
+        if not verify_password(truncated_password, user["password_hash"]):
             raise HTTPException(status_code=401, detail="Invalid email or password")
         
         # Create access token
