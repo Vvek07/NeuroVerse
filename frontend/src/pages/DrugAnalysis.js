@@ -1,490 +1,736 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
     Container,
+    Grid,
     Paper,
     Typography,
     TextField,
-    Autocomplete,
     Button,
     Box,
-    Grid,
-    Card,
-    CardContent,
     CircularProgress,
     Alert,
+    Card,
+    CardContent,
     Divider,
-    Chip,
-    IconButton,
-    Tooltip as MuiTooltip
+    Autocomplete,
+    Link,
+    IconButton
 } from '@mui/material';
 import {
-    Science as ScienceIcon,
-    TrendingUp,
+    Science,
     Assessment,
-    ArrowBack as ArrowBackIcon,
-    Download as DownloadIcon
+    Download,
+    Article,
+    ArrowBack as ArrowBackIcon
 } from '@mui/icons-material';
-import {
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    Legend,
-    ResponsiveContainer
-} from 'recharts';
-import api from '../services/api';
+import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+import AdvancedAnalysis from '../components/AdvancedAnalysis';
+import PersonaSelector from '../components/PersonaSelector';
+import { TrafficLightScore, PropertyRadarChart, PropertyHeatmap } from '../components/Visualizations';
+import ScoreComparisonChart from '../components/ScoreComparisonChart';
+
+
 
 const DrugAnalysis = () => {
     const navigate = useNavigate();
-    const [allDrugs, setAllDrugs] = useState([]);
-    const [selectedDrug, setSelectedDrug] = useState(null);
+    const [drugName, setDrugName] = useState('');
+    const [properties, setProperties] = useState({
+        mol_wt: '',
+        logp: '',
+        logbb: '',
+        tpsa: '',
+        hbd: '',
+        hba: '',
+        solubility: '',
+        papp: '',
+        unionized_fraction: '',
+        mucin: '',
+        pka: '',
+        p_gp: '',
+        bbb_prob: '',
+        cns_mpo: ''
+    });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const [analysisResult, setAnalysisResult] = useState(null);
+    const [result, setResult] = useState(null);
+    const [drugOptions, setDrugOptions] = useState([]);
+    const [persona, setPersona] = useState('General');
+    const [pubmedData, setPubmedData] = useState(null);
+    const [pubmedLoading, setPubmedLoading] = useState(false);
+    const [comparisonData, setComparisonData] = useState(null);
 
-    // Custom Analysis State (Unified Form)
-    const [customParams, setCustomParams] = useState({
-        "Mol Wt": 350,
-        "LogP": 2.5,
-        "pKa": 7.4,
-        "TPSA": 60,
-        "HBD": 2,
-        "HBA": 4,
-        "Solubility": -3.0,
-        "P-gp Substrate Probability": 0.1,
-        "LogBB": 0.2,
-        "Fraction Unionized at pH 5": 0.8,
-        "Mucin Binding Index": 0.3,
-        "Mucosal Permeability (Papp)": 0.5
-    });
-    const [customName, setCustomName] = useState("New Compound");
 
+    // Fetch drug database for autocomplete
     useEffect(() => {
-        fetchAllDrugs();
-    }, []);
-
-    const fetchAllDrugs = async () => {
-        try {
-            const response = await api.get('/api/drugs/drugs');
-            if (response.data.success) {
-                setAllDrugs(response.data.drugs);
-            }
-        } catch (err) {
-            console.error('Error fetching drugs:', err);
-        }
-    };
-
-    const handleDrugSelect = async (event, newValue) => {
-        setSelectedDrug(newValue);
-        if (newValue) {
+        const fetchDrugs = async () => {
             try {
-                // Fetch drug details to autofill form
-                const response = await api.get(`/api/drugs/drugs/${newValue}`);
+                const token = localStorage.getItem('token');
+                const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/drugs/list`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
                 if (response.data.success) {
-                    const drugData = response.data.drug;
-                    setCustomName(drugData["Drug Name"]);
-
-                    // Filter out non-numeric properties for the form
-                    const newParams = { ...customParams };
-                    Object.keys(newParams).forEach(key => {
-                        if (drugData[key] !== undefined) {
-                            newParams[key] = drugData[key];
+                    // Map backend data to Autocomplete format
+                    const options = response.data.drugs.map(drug => ({
+                        label: drug['Drug Name'],
+                        properties: {
+                            mol_wt: drug['Mol Wt'],
+                            logp: drug['LogP'],
+                            logbb: drug['LogBB'],
+                            tpsa: drug['TPSA'],
+                            hbd: drug['HBD'],
+                            hba: drug['HBA'],
+                            solubility: drug['Solubility'],
+                            papp: drug['Mucosal Permeability (Papp)'],
+                            unionized_fraction: drug['Fraction Unionized at pH 5'],
+                            mucin: drug['Mucin Binding Index'],
+                            pka: drug['pKa'],
+                            p_gp: drug['P-gp Substrate Probability'],
+                            bbb_prob: drug['BBB Permeation Probability'],
+                            cns_mpo: drug['CNS MPO Score']
                         }
-                    });
-                    setCustomParams(newParams);
-                    setAnalysisResult(null); // Reset result on new selection
+                    }));
+                    setDrugOptions(options);
                 }
             } catch (err) {
-                console.error("Error fetching drug details", err);
-                setError("Failed to load drug details");
+                console.error('Failed to fetch drug list:', err);
             }
+        };
+        fetchDrugs();
+    }, []);
+
+    const handleInputChange = (e) => {
+        setProperties({
+            ...properties,
+            [e.target.name]: e.target.value
+        });
+    };
+
+    const handleDrugSelect = (event, newValue) => {
+        if (newValue) {
+            setDrugName(newValue.label);
+            // Pre-fill properties if available
+            setProperties({
+                mol_wt: newValue.properties?.mol_wt || '',
+                logp: newValue.properties?.logp || '',
+                logbb: newValue.properties?.logbb || '',
+                tpsa: newValue.properties?.tpsa || '',
+                hbd: newValue.properties?.hbd || '',
+                hba: newValue.properties?.hba || '',
+                solubility: newValue.properties?.solubility || '',
+                papp: newValue.properties?.papp || '',
+                unionized_fraction: newValue.properties?.unionized_fraction || '',
+                mucin: newValue.properties?.mucin || '',
+                pka: newValue.properties?.pka || '',
+                p_gp: newValue.properties?.p_gp || '',
+                bbb_prob: newValue.properties?.bbb_prob || '',
+                cns_mpo: newValue.properties?.cns_mpo || ''
+            });
+            // Reset previous results
+            setResult(null);
+            setPubmedData(null);
         }
     };
 
-    const handleParamChange = (key, value) => {
-        setCustomParams(prev => ({
-            ...prev,
-            [key]: value
-        }));
-    };
-
-    const handleAnalyze = async () => {
+    const fetchPubmedData = async (name) => {
+        setPubmedLoading(true);
         try {
-            setError('');
-            setLoading(true);
-
-            // Convert parameters to numbers for the API
-            const numericParams = {};
-            Object.entries(customParams).forEach(([key, value]) => {
-                const numVal = parseFloat(value);
-                numericParams[key] = isNaN(numVal) ? 0 : numVal;
+            const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/predict/pubmed/${name}`, {
+                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
             });
-
-            // Always use custom endpoint to support edited parameters
-            const response = await api.post('/api/predict/custom', {
-                drug_name: customName,
-                properties: numericParams
-            });
-
             if (response.data.success) {
-                setAnalysisResult(response.data);
+                setPubmedData(response.data.papers);
             }
         } catch (err) {
-            let errorMessage = 'Analysis failed';
-            if (err.response?.data?.detail) {
-                const detail = err.response.data.detail;
-                if (typeof detail === 'string') {
-                    errorMessage = detail;
-                } else if (Array.isArray(detail)) {
-                    errorMessage = detail.map(e => e.msg).join(', ');
-                } else if (typeof detail === 'object') {
-                    errorMessage = JSON.stringify(detail);
-                }
-            } else if (err.message) {
-                errorMessage = err.message;
+            console.error('Failed to fetch PubMed data:', err);
+        } finally {
+            setPubmedLoading(false);
+        }
+    };
+
+
+
+    const handleAnalyze = async () => {
+        setLoading(true);
+        setError('');
+        setResult(null);
+        setPubmedData(null);
+
+
+        try {
+            // Convert properties to numbers
+            const numericProperties = {};
+            for (const [key, value] of Object.entries(properties)) {
+                numericProperties[key] = parseFloat(value) || 0;
             }
-            setError(errorMessage);
+
+            const response = await axios.post(
+                `${process.env.REACT_APP_API_URL}/api/predict/custom`,
+                {
+                    drug_name: drugName || 'Unknown Drug',
+                    properties: numericProperties,
+                    persona: persona
+                },
+                {
+                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                }
+            );
+
+            if (response.data.success) {
+                setResult(response.data);
+                // Fetch PubMed data if we have a valid drug name
+                if (drugName && drugName !== 'Unknown Drug') {
+                    fetchPubmedData(drugName);
+                }
+
+                // Fetch Comparison Data
+                try {
+                    const compResponse = await axios.post(
+                        `${process.env.REACT_APP_API_URL}/api/predict/compare-standard`,
+                        {
+                            drug_name: drugName || 'Unknown Drug',
+                            properties: numericProperties
+                        },
+                        {
+                            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                        }
+                    );
+                    if (compResponse.data.success) {
+                        setComparisonData(compResponse.data.comparison);
+                    }
+                } catch (compErr) {
+                    console.error('Comparison fetch failed:', compErr);
+                }
+            }
+        } catch (err) {
+            setError(err.response?.data?.detail || 'Analysis failed. Please check your inputs.');
         } finally {
             setLoading(false);
         }
     };
 
     const handleDownloadReport = async () => {
-        try {
-            const predictionId = analysisResult?.prediction_id;
-            if (!predictionId) {
-                setError('No prediction ID available');
-                return;
-            }
+        if (!result?.prediction_id) return;
 
-            const token = localStorage.getItem('token');
-            const response = await fetch(
-                `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/predict/download-report/${predictionId}`,
+        try {
+            const response = await axios.get(
+                `${process.env.REACT_APP_API_URL}/api/predict/download-report/${result.prediction_id}`,
                 {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
+                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+                    responseType: 'blob'
                 }
             );
 
-            if (!response.ok) {
-                throw new Error('Failed to download report');
-            }
-
-            // Get filename from header or create default
-            const contentDisposition = response.headers.get('Content-Disposition');
-            let filename = 'DrugAnalysis_Report.pdf';
-            if (contentDisposition) {
-                const matches = /filename="?([^"]+)"?/.exec(contentDisposition);
-                if (matches && matches[1]) {
-                    filename = matches[1];
-                }
-            }
-
-            // Download file
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `DrugAnalysis_${drugName || 'Report'}.pdf`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
         } catch (err) {
-            setError('Failed to download report: ' + err.message);
+            console.error('Download failed:', err);
+            setError('Failed to download report');
         }
     };
 
-    // Prepare chart data
-    const featureImportanceData = analysisResult?.feature_importance
-        ? Object.entries(analysisResult.feature_importance)
-            .map(([name, value]) => ({ name, importance: value }))
-            .sort((a, b) => b.importance - a.importance)
-            .slice(0, 8)
-        : [];
-
-    const prediction = analysisResult?.prediction || analysisResult?.result;
-    const recommendations = analysisResult?.recommendations;
-
-    // Parameter Definitions for Tooltips and Guide
-    const parameterDefinitions = {
-        "Mol Wt": "Molecular Weight: The mass of a molecule. Smaller molecules (<400-500 Da) generally penetrate the nasal mucosa better.",
-        "LogP": "Partition Coefficient: Measures lipophilicity. Optimal range for nasal absorption is usually 1-3. High LogP means more lipid-soluble.",
-        "pKa": "Acid Dissociation Constant: Determines the ionization state at a given pH. Un-ionized drugs cross membranes more easily.",
-        "TPSA": "Topological Polar Surface Area: Related to hydrogen bonding. Lower TPSA (<140 Å²) favors better membrane permeability.",
-        "HBD": "Hydrogen Bond Donors: Number of hydrogen atoms attached to electronegative atoms. Fewer HBDs (<5) favor permeability.",
-        "HBA": "Hydrogen Bond Acceptors: Number of electronegative atoms (N, O). Fewer HBAs (<10) favor permeability.",
-        "Solubility": "LogS (Solubility): Essential for the drug to dissolve in the nasal mucus layer before absorption.",
-        "P-gp Substrate Probability": "P-glycoprotein Substrate: High probability means the drug might be pumped back out of the brain/cells, reducing efficiency.",
-        "LogBB": "Blood-Brain Barrier Permeability: Indicates ability to cross the BBB. Positive values suggest better brain penetration.",
-        "Fraction Unionized at pH 5": "Fraction of drug un-ionized at nasal pH (approx 5.0). Only the un-ionized form typically crosses membranes.",
-        "Mucin Binding Index": "Tendency to bind to mucus. High binding can trap the drug in mucus, preventing it from reaching the epithelium.",
-        "Mucosal Permeability (Papp)": "Apparent Permeability Coefficient: A direct measure of the rate at which the drug crosses the nasal membrane."
-    };
-
-    const ParameterGuide = () => (
-        <Paper sx={{ p: 3, mt: 4, bgcolor: '#f8f9fa' }}>
-            <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <ScienceIcon color="info" />
-                Parameter Guide for Students
-            </Typography>
-            <Typography variant="body2" color="text.secondary" paragraph>
-                Understanding these physicochemical properties is crucial for predicting nose-to-brain drug delivery efficiency.
-            </Typography>
-            <Grid container spacing={2}>
-                {Object.entries(parameterDefinitions).map(([key, desc]) => (
-                    <Grid item xs={12} md={6} key={key}>
-                        <Card variant="outlined" sx={{ height: '100%' }}>
-                            <CardContent>
-                                <Typography variant="subtitle2" color="primary" gutterBottom>
-                                    {key}
-                                </Typography>
-                                <Typography variant="body2">
-                                    {desc}
-                                </Typography>
-                            </CardContent>
-                        </Card>
-                    </Grid>
-                ))}
-            </Grid>
-        </Paper>
-    );
-
     return (
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-                <IconButton onClick={() => navigate(-1)} sx={{ mr: 2 }}>
-                    <ArrowBackIcon />
-                </IconButton>
-                <Typography variant="h4" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <ScienceIcon fontSize="large" color="primary" />
-                    Drug Analysis
-                </Typography>
+            {/* Premium Gradient Header */}
+            <Box
+                className="animated-bg premium-page-header"
+                sx={{
+                    p: 4,
+                    mb: 4,
+                    background: 'linear-gradient(-45deg, #667eea, #764ba2, #1e3a8a, #06b6d4)',
+                    backgroundSize: '400% 400%',
+                    borderRadius: '24px',
+                    color: 'white',
+                    boxShadow: '0 20px 60px rgba(103, 126, 234, 0.3)',
+                }}
+            >
+                <Box className="premium-page-header-content" sx={{ display: 'flex', alignItems: 'center' }}>
+                    <IconButton onClick={() => navigate(-1)} sx={{ mr: 2, color: 'white', '&:hover': { background: 'rgba(255,255,255,0.1)' } }}>
+                        <ArrowBackIcon />
+                    </IconButton>
+                    <Box>
+                        <Typography variant="h3" sx={{ fontWeight: 700, mb: 1, textShadow: '0 2px 10px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center' }}>
+                            <Science sx={{ mr: 2, fontSize: 45 }} />
+                            Drug Analysis & Prediction
+                        </Typography>
+                        <Typography variant="h6" sx={{ opacity: 0.95, fontWeight: 400 }}>
+                            AI-powered nose-to-brain delivery efficiency prediction
+                        </Typography>
+                    </Box>
+                </Box>
             </Box>
 
-            <Typography variant="body1" color="text.secondary" paragraph>
-                Search for a drug to autofill parameters, or manually enter values to analyze a new compound.
-            </Typography>
+            {/* Persona Selector */}
+            <PersonaSelector selectedPersona={persona} onPersonaChange={setPersona} />
 
-            <Paper sx={{ p: 3, mb: 3 }}>
-                <Grid container spacing={3}>
-                    <Grid item xs={12}>
+            <Grid container spacing={3}>
+                {/* Input Section */}
+                <Grid item xs={12} md={4}>
+                    <Paper sx={{ p: 3, height: '100%' }}>
+                        <Typography variant="h6" gutterBottom>
+                            Drug Parameters
+                        </Typography>
+
                         <Autocomplete
-                            options={allDrugs}
-                            value={selectedDrug}
+                            options={drugOptions}
+                            getOptionLabel={(option) => option.label}
                             onChange={handleDrugSelect}
                             renderInput={(params) => (
                                 <TextField
                                     {...params}
-                                    label="Search Database to Autofill"
-                                    placeholder="Type drug name (e.g., Donepezil...)"
+                                    label="Search Database (Optional)"
+                                    fullWidth
+                                    margin="normal"
+                                    size="small"
                                 />
                             )}
+                            sx={{ mb: 2 }}
                         />
-                    </Grid>
 
-                    <Grid item xs={12}>
-                        <Divider sx={{ my: 1 }}>OR ENTER MANUALLY</Divider>
-                    </Grid>
-
-                    <Grid item xs={12} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                         <TextField
                             label="Drug Name"
-                            value={customName}
-                            onChange={(e) => setCustomName(e.target.value)}
                             fullWidth
-                            variant="outlined"
+                            value={drugName}
+                            onChange={(e) => setDrugName(e.target.value)}
+                            margin="normal"
+                            size="small"
                         />
-                        {customName && customName !== "New Compound" && (
-                            <Button
-                                variant="outlined"
-                                color="info"
-                                href={`https://pubchem.ncbi.nlm.nih.gov/#query=${customName}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                sx={{ whiteSpace: 'nowrap' }}
-                            >
-                                View on PubChem
-                            </Button>
-                        )}
-                    </Grid>
-                    {Object.entries(customParams).map(([key, value]) => (
-                        <Grid item xs={6} md={3} key={key}>
-                            <MuiTooltip title={parameterDefinitions[key] || "Enter value"} arrow placement="top">
+
+                        <Divider sx={{ my: 2 }}>Physicochemical Properties</Divider>
+
+                        <Grid container spacing={2}>
+                            <Grid item xs={6}>
                                 <TextField
-                                    label={key}
-                                    type="number"
-                                    value={value}
-                                    onChange={(e) => handleParamChange(key, e.target.value)}
+                                    label="Molecular Weight"
+                                    name="mol_wt"
+                                    value={properties.mol_wt}
+                                    onChange={handleInputChange}
                                     fullWidth
                                     size="small"
-                                    inputProps={{ step: 0.1 }}
+                                    type="number"
                                 />
-                            </MuiTooltip>
+                            </Grid>
+                            <Grid item xs={6}>
+                                <TextField
+                                    label="LogP"
+                                    name="logp"
+                                    value={properties.logp}
+                                    onChange={handleInputChange}
+                                    fullWidth
+                                    size="small"
+                                    type="number"
+                                />
+                            </Grid>
+                            <Grid item xs={6}>
+                                <TextField
+                                    label="LogBB"
+                                    name="logbb"
+                                    value={properties.logbb}
+                                    onChange={handleInputChange}
+                                    fullWidth
+                                    size="small"
+                                    type="number"
+                                />
+                            </Grid>
+                            <Grid item xs={6}>
+                                <TextField
+                                    label="TPSA"
+                                    name="tpsa"
+                                    value={properties.tpsa}
+                                    onChange={handleInputChange}
+                                    fullWidth
+                                    size="small"
+                                    type="number"
+                                />
+                            </Grid>
+                            <Grid item xs={6}>
+                                <TextField
+                                    label="H-Bond Donors"
+                                    name="hbd"
+                                    value={properties.hbd}
+                                    onChange={handleInputChange}
+                                    fullWidth
+                                    size="small"
+                                    type="number"
+                                />
+                            </Grid>
+                            <Grid item xs={6}>
+                                <TextField
+                                    label="H-Bond Acceptors"
+                                    name="hba"
+                                    value={properties.hba}
+                                    onChange={handleInputChange}
+                                    fullWidth
+                                    size="small"
+                                    type="number"
+                                />
+                            </Grid>
+                            <Grid item xs={6}>
+                                <TextField
+                                    label="Solubility (LogS)"
+                                    name="solubility"
+                                    value={properties.solubility}
+                                    onChange={handleInputChange}
+                                    fullWidth
+                                    size="small"
+                                    type="number"
+                                />
+                            </Grid>
+                            <Grid item xs={6}>
+                                <TextField
+                                    label="Mucosal Perm. (Papp)"
+                                    name="papp"
+                                    value={properties.papp}
+                                    onChange={handleInputChange}
+                                    fullWidth
+                                    size="small"
+                                    type="number"
+                                />
+                            </Grid>
+                            <Grid item xs={6}>
+                                <TextField
+                                    label="Unionized Fraction"
+                                    name="unionized_fraction"
+                                    value={properties.unionized_fraction}
+                                    onChange={handleInputChange}
+                                    fullWidth
+                                    size="small"
+                                    type="number"
+                                />
+                            </Grid>
+                            <Grid item xs={6}>
+                                <TextField
+                                    label="Mucin Binding"
+                                    name="mucin"
+                                    value={properties.mucin}
+                                    onChange={handleInputChange}
+                                    fullWidth
+                                    size="small"
+                                    type="number"
+                                />
+                            </Grid>
+                            <Grid item xs={6}>
+                                <TextField
+                                    label="pKa"
+                                    name="pka"
+                                    value={properties.pka}
+                                    onChange={handleInputChange}
+                                    fullWidth
+                                    size="small"
+                                    type="number"
+                                />
+                            </Grid>
+                            <Grid item xs={6}>
+                                <TextField
+                                    label="P-gp Probability"
+                                    name="p_gp"
+                                    value={properties.p_gp}
+                                    onChange={handleInputChange}
+                                    fullWidth
+                                    size="small"
+                                    type="number"
+                                />
+                            </Grid>
+                            <Grid item xs={6}>
+                                <TextField
+                                    label="BBB Probability"
+                                    name="bbb_prob"
+                                    value={properties.bbb_prob}
+                                    onChange={handleInputChange}
+                                    fullWidth
+                                    size="small"
+                                    type="number"
+                                />
+                            </Grid>
+                            <Grid item xs={6}>
+                                <TextField
+                                    label="CNS MPO Score"
+                                    name="cns_mpo"
+                                    value={properties.cns_mpo}
+                                    onChange={handleInputChange}
+                                    fullWidth
+                                    size="small"
+                                    type="number"
+                                />
+                            </Grid>
                         </Grid>
-                    ))}
-                    <Grid item xs={12}>
+
                         <Button
                             variant="contained"
-                            onClick={handleAnalyze}
-                            disabled={loading}
                             fullWidth
                             size="large"
-                            startIcon={loading ? <CircularProgress size={20} /> : <Assessment />}
+                            onClick={handleAnalyze}
+                            disabled={loading}
+                            sx={{ mt: 3 }}
+                            startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <Assessment />}
                         >
                             {loading ? 'Analyzing...' : 'Analyze Drug'}
                         </Button>
-                    </Grid>
-                </Grid>
 
-                {error && (
-                    <Alert severity="error" sx={{ mt: 2 }}>
-                        {error}
-                    </Alert>
-                )}
-            </Paper>
-
-            {analysisResult && prediction && (
-                <>
-                    {/* Main Result Banner */}
-                    <Paper
-                        sx={{
-                            p: 4,
-                            mb: 3,
-                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                            color: 'white'
-                        }}
-                    >
-                        <Typography variant="h3" align="center" gutterBottom>
-                            {prediction.predicted_efficiency}%
-                        </Typography>
-                        <Typography variant="h6" align="center">
-                            Predicted Nose-to-Brain Delivery Efficiency
-                        </Typography>
-                        <Typography variant="body2" align="center" sx={{ mt: 1, opacity: 0.9 }}>
-                            Confidence Score: {prediction.confidence_score}%
-                        </Typography>
-                        <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
-                            <Button
-                                variant="outlined"
-                                color="inherit"
-                                startIcon={<DownloadIcon />}
-                                onClick={handleDownloadReport}
-                                sx={{
-                                    borderColor: 'white',
-                                    color: 'white',
-                                    '&:hover': {
-                                        borderColor: 'white',
-                                        backgroundColor: 'rgba(255,255,255,0.1)'
-                                    }
-                                }}
-                            >
-                                Download Report
-                            </Button>
-                        </Box>
+                        {error && (
+                            <Alert severity="error" sx={{ mt: 2 }}>
+                                {error}
+                            </Alert>
+                        )}
                     </Paper>
+                </Grid >
 
-                    {/* Drug Properties Display */}
-                    <Paper sx={{ p: 3, mb: 3 }}>
-                        <Typography variant="h6" gutterBottom>
-                            Analyzed Properties
-                        </Typography>
-                        <Divider sx={{ mb: 2 }} />
-                        <Grid container spacing={2}>
-                            {Object.entries(prediction.properties || customParams).map(([key, value]) => (
-                                <Grid item xs={6} sm={4} md={3} key={key}>
-                                    <MuiTooltip title={parameterDefinitions[key] || ""} arrow>
-                                        <Card variant="outlined" sx={{ cursor: 'help' }}>
-                                            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                                                <Typography variant="caption" color="text.secondary" display="block" noWrap title={key}>
-                                                    {key}
-                                                </Typography>
-                                                <Typography variant="h6">
-                                                    {typeof value === 'number' ? value.toFixed(2) : value}
-                                                </Typography>
-                                            </CardContent>
-                                        </Card>
-                                    </MuiTooltip>
-                                </Grid>
-                            ))}
-                        </Grid>
-                    </Paper>
-
-                    {/* Feature Importance */}
-                    <Paper sx={{ p: 3, mb: 3 }}>
-                        <Typography variant="h6" gutterBottom>
-                            Feature Importance Analysis
-                        </Typography>
-                        <ResponsiveContainer width="100%" height={300}>
-                            <BarChart data={featureImportanceData}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
-                                <YAxis />
-                                <Tooltip />
-                                <Legend />
-                                <Bar dataKey="importance" fill="#1976d2" />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </Paper>
-
-                    {/* AI Insights */}
-                    {analysisResult.insights && (
-                        <Paper sx={{ p: 3, mb: 3 }}>
-                            <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <TrendingUp color="primary" />
-                                AI Insights
-                            </Typography>
-                            <Divider sx={{ mb: 2 }} />
-                            {analysisResult.insights.map((insight, index) => (
-                                <Alert key={index} severity="info" sx={{ mb: 1 }}>
-                                    {insight}
-                                </Alert>
-                            ))}
-                        </Paper>
-                    )}
-
-                    {/* Recommendations */}
-                    {recommendations && recommendations.recommendations && (
-                        <Paper sx={{ p: 3 }}>
-                            <Typography variant="h6" gutterBottom>
-                                💡 AI Recommendations for Improvement
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary" paragraph>
-                                {recommendations.summary}
-                            </Typography>
-                            <Divider sx={{ my: 2 }} />
-
-                            {recommendations.recommendations.map((rec, index) => (
-                                <Card key={index} sx={{ mb: 2 }} variant="outlined">
+                {/* Results Section */}
+                < Grid item xs={12} md={8} >
+                    {
+                        result ? (
+                            <Box>
+                                {/* Main Prediction Card */}
+                                < Card sx={{ mb: 3, bgcolor: '#e3f2fd' }}>
                                     <CardContent>
-                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 1 }}>
-                                            <Typography variant="h6" color="primary">
-                                                {rec.category}
-                                            </Typography>
-                                            <Chip
-                                                label={rec.impact}
-                                                color={rec.impact === 'High' ? 'error' : rec.impact === 'Medium' ? 'warning' : 'info'}
-                                                size="small"
-                                            />
-                                        </Box>
-                                        <Typography variant="body2" paragraph>
-                                            <strong>Recommendation:</strong> {rec.recommendation}
+                                        <Grid container alignItems="center" justifyContent="space-between">
+                                            <Grid item>
+                                                <Typography variant="h5" gutterBottom color="primary.dark">
+                                                    Prediction Result
+                                                </Typography>
+                                                <Typography variant="h3" color="primary.main" fontWeight="bold">
+                                                    {result.result.predicted_efficiency}%
+                                                </Typography>
+                                                <Typography variant="subtitle1" color="text.secondary">
+                                                    Nose-to-Brain Delivery Efficiency
+                                                </Typography>
+                                                <Box sx={{ mt: 2, p: 1, bgcolor: '#f5f5f5', borderRadius: 1 }}>
+                                                    <Typography variant="caption" display="block" fontWeight="bold">
+                                                        Feasibility Scale:
+                                                    </Typography>
+                                                    <Typography variant="caption" display="block" color="success.main">
+                                                        &gt; 75% : High Feasibility
+                                                    </Typography>
+                                                    <Typography variant="caption" display="block" color="warning.main">
+                                                        50% - 75% : Moderate Feasibility
+                                                    </Typography>
+                                                    <Typography variant="caption" display="block" color="error.main">
+                                                        &lt; 50% : Low Feasibility
+                                                    </Typography>
+                                                </Box>
+                                            </Grid>
+                                            <Grid item>
+                                                <Box sx={{ textAlign: 'right' }}>
+                                                    <Typography variant="h6" color="secondary.main">
+                                                        {result.result.confidence_score}%
+                                                    </Typography>
+                                                    <Typography variant="caption" display="block">
+                                                        Confidence Score
+                                                    </Typography>
+                                                    <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
+                                                        <Button
+                                                            variant="outlined"
+                                                            size="small"
+                                                            onClick={() => window.open(`https://pubmed.ncbi.nlm.nih.gov/?term=${drugName}`, '_blank')}
+                                                            startIcon={<Article />}
+                                                        >
+                                                            Search on PubMed
+                                                        </Button>
+
+                                                        <Button
+                                                            variant="contained"
+                                                            color="primary"
+                                                            size="small"
+                                                            startIcon={<Download />}
+                                                            onClick={handleDownloadReport}
+                                                        >
+                                                            Download Report
+                                                        </Button>
+                                                    </Box>
+                                                </Box>
+                                            </Grid>
+                                        </Grid>
+                                    </CardContent>
+                                </Card >
+
+                                {/* Visualization Dashboard */}
+                                < Grid container spacing={3} sx={{ mb: 3 }}>
+                                    <Grid item xs={12} md={4}>
+                                        <TrafficLightScore
+                                            score={result.advanced_analysis?.nbfs_score?.score || 0}
+                                            label="NBFS Score"
+                                            description="Nose-to-Brain Feasibility Score based on key physicochemical properties."
+                                        />
+                                    </Grid>
+                                    <Grid item xs={12} md={8}>
+                                        <PropertyHeatmap properties={result.result.properties} />
+                                    </Grid>
+                                    <Grid item xs={12}>
+                                        <PropertyRadarChart properties={result.result.properties} />
+                                    </Grid>
+                                </Grid >
+
+                                {/* Score Comparison Chart */}
+                                {
+                                    comparisonData && (
+                                        <ScoreComparisonChart data={comparisonData} />
+                                    )
+                                }
+
+                                {/* Advanced Analysis Component */}
+                                {
+                                    result.advanced_analysis && (
+                                        <AdvancedAnalysis data={result.advanced_analysis} />
+                                    )
+                                }
+
+                                {/* Detailed Drug Properties Card */}
+                                <Card sx={{ mb: 3, mt: 4 }}>
+                                    <CardContent>
+                                        <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, color: '#1e3a8a', mb: 3 }}>
+                                            📊 Detailed Drug Properties Analysis
                                         </Typography>
+
+                                        <Grid container spacing={3}>
+                                            {/* Molecular Properties */}
+                                            <Grid item xs={12} md={6}>
+                                                <Paper sx={{ p: 2, bgcolor: 'linear-gradient(145deg, #f0f4ff 0%, #e8eeff 100%)', border: '1px solid #e3e8ef' }}>
+                                                    <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#667eea', mb: 2 }}>
+                                                        🧬 Molecular Properties
+                                                    </Typography>
+                                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <Typography variant="body2" color="text.secondary">Molecular Weight:</Typography>
+                                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{properties.mol_wt} Da</Typography>
+                                                        </Box>
+                                                        <Divider />
+                                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <Typography variant="body2" color="text.secondary">LogP (Lipophilicity):</Typography>
+                                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{properties.logp}</Typography>
+                                                        </Box>
+                                                        <Divider />
+                                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <Typography variant="body2" color="text.secondary">TPSA (Polar Surface Area):</Typography>
+                                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{properties.tpsa} Ų</Typography>
+                                                        </Box>
+                                                        <Divider />
+                                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <Typography variant="body2" color="text.secondary">H-Bond Donors:</Typography>
+                                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{properties.hbd}</Typography>
+                                                        </Box>
+                                                        <Divider />
+                                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <Typography variant="body2" color="text.secondary">H-Bond Acceptors:</Typography>
+                                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{properties.hba}</Typography>
+                                                        </Box>
+                                                    </Box>
+                                                </Paper>
+                                            </Grid>
+
+                                            {/* BBB & CNS Properties */}
+                                            <Grid item xs={12} md={6}>
+                                                <Paper sx={{ p: 2, bgcolor: 'linear-gradient(145deg, #fff0f5 0%, #ffe8f0 100%)', border: '1px solid #f0e3e8' }}>
+                                                    <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#f5576c', mb: 2 }}>
+                                                        🧠 BBB & CNS Properties
+                                                    </Typography>
+                                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <Typography variant="body2" color="text.secondary">LogBB (BBB Permeation):</Typography>
+                                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{properties.logbb}</Typography>
+                                                        </Box>
+                                                        <Divider />
+                                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <Typography variant="body2" color="text.secondary">BBB Permeation Probability:</Typography>
+                                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{properties.bbb_prob}</Typography>
+                                                        </Box>
+                                                        <Divider />
+                                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <Typography variant="body2" color="text.secondary">CNS MPO Score:</Typography>
+                                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{properties.cns_mpo}</Typography>
+                                                        </Box>
+                                                        <Divider />
+                                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <Typography variant="body2" color="text.secondary">P-gp Substrate Probability:</Typography>
+                                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{properties.p_gp}</Typography>
+                                                        </Box>
+                                                    </Box>
+                                                </Paper>
+                                            </Grid>
+
+                                            {/* Nasal Delivery Properties */}
+                                            <Grid item xs={12} md={6}>
+                                                <Paper sx={{ p: 2, bgcolor: 'linear-gradient(145deg, #f0fff4 0%, #e8f5e9 100%)', border: '1px solid #e3f0e8' }}>
+                                                    <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#43e97b', mb: 2 }}>
+                                                        👃 Nasal Delivery Properties
+                                                    </Typography>
+                                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <Typography variant="body2" color="text.secondary">Mucosal Permeability (Papp):</Typography>
+                                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{properties.papp} cm/s</Typography>
+                                                        </Box>
+                                                        <Divider />
+                                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <Typography variant="body2" color="text.secondary">Fraction Unionized (pH 5):</Typography>
+                                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{properties.unionized_fraction}</Typography>
+                                                        </Box>
+                                                        <Divider />
+                                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <Typography variant="body2" color="text.secondary">Mucin Binding Index:</Typography>
+                                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{properties.mucin}</Typography>
+                                                        </Box>
+                                                        <Divider />
+                                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <Typography variant="body2" color="text.secondary">pKa:</Typography>
+                                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{properties.pka}</Typography>
+                                                        </Box>
+                                                    </Box>
+                                                </Paper>
+                                            </Grid>
+
+                                            {/* Pharmaceutical Properties */}
+                                            <Grid item xs={12} md={6}>
+                                                <Paper sx={{ p: 2, bgcolor: 'linear-gradient(145deg, #fffaf0 0%, #fff5e8 100%)', border: '1px solid #f0ebe3' }}>
+                                                    <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#ff9a56', mb: 2 }}>
+                                                        💊 Pharmaceutical Properties
+                                                    </Typography>
+                                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <Typography variant="body2" color="text.secondary">Solubility:</Typography>
+                                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{properties.solubility} mg/mL</Typography>
+                                                        </Box>
+                                                        <Divider />
+                                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <Typography variant="body2" color="text.secondary">Predicted Efficiency:</Typography>
+                                                            <Typography variant="body2" sx={{ fontWeight: 600, color: '#667eea' }}>{result.result.predicted_efficiency}%</Typography>
+                                                        </Box>
+                                                        <Divider />
+                                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <Typography variant="body2" color="text.secondary">Confidence Score:</Typography>
+                                                            <Typography variant="body2" sx={{ fontWeight: 600, color: '#f5576c' }}>{result.result.confidence_score}%</Typography>
+                                                        </Box>
+                                                        <Divider />
+                                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <Typography variant="body2" color="text.secondary">Drug Name:</Typography>
+                                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{drugName}</Typography>
+                                                        </Box>
+                                                    </Box>
+                                                </Paper>
+                                            </Grid>
+                                        </Grid>
                                     </CardContent>
                                 </Card>
-                            ))}
-                        </Paper>
-                    )}
-                </>
-            )}
 
-            {/* Parameter Guide Section */}
-            <ParameterGuide />
-        </Container>
+
+                            </Box >
+                        ) : (
+                            <Paper sx={{ p: 5, textAlign: 'center', color: 'text.secondary', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                                <Assessment sx={{ fontSize: 60, mb: 2, opacity: 0.5 }} />
+                                <Typography variant="h6">
+                                    Enter drug parameters or select a drug to begin analysis
+                                </Typography>
+                                <Typography variant="body2">
+                                    Select a persona above to tailor the insights to your role.
+                                </Typography>
+                            </Paper>
+                        )}
+                </Grid >
+            </Grid >
+        </Container >
     );
 };
 

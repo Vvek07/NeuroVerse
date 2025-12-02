@@ -22,11 +22,13 @@ router = APIRouter()
 class DrugSearchResponse(BaseModel):
     name: str
 
-@router.get("/drugs")
+@router.get("/list")
 async def list_all_drugs(current_user: dict = Depends(get_current_user)):
     """Get list of all available drugs"""
     try:
-        drugs = get_all_drugs()
+        df = get_drug_database()
+        # Convert to list of dicts
+        drugs = df.to_dict(orient='records')
         return {
             "success": True,
             "drugs": drugs,

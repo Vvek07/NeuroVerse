@@ -17,25 +17,79 @@ import History from './pages/History';
 import ModelComparison from './pages/ModelComparison';
 import AdminDashboard from './pages/AdminDashboard';
 import BatchAnalysis from './pages/BatchAnalysis';
+import DiseaseRecommendation from './pages/DiseaseRecommendation';
 
 // Components
 import Navbar from './components/Navbar';
 
 // Styles
 import './styles/global.css';
+import './styles/pharma-theme.css';
+import './styles/premium-enhancements.css';
 
 const theme = createTheme({
     palette: {
         primary: {
-            main: '#1976d2',
+            main: '#1e3a8a', // Deep Medical Blue
+            light: '#3b82f6',
+            dark: '#1e40af',
         },
         secondary: {
-            main: '#dc004e',
+            main: '#7c3aed', // Medical Purple
+            light: '#a78bfa',
+            dark: '#6d28d9',
+        },
+        success: {
+            main: '#10b981',
+        },
+        warning: {
+            main: '#f59e0b',
+        },
+        error: {
+            main: '#ef4444',
+        },
+        background: {
+            default: '#f5f7fa',
+            paper: '#ffffff',
         },
     },
     typography: {
-        fontFamily: 'Roboto, Arial, sans-serif',
+        fontFamily: '"Inter", "Segoe UI", "Roboto", sans-serif',
+        h1: {
+            fontWeight: 700,
+            letterSpacing: '-0.02em',
+        },
+        h2: {
+            fontWeight: 700,
+            letterSpacing: '-0.02em',
+        },
+        h3: {
+            fontWeight: 700,
+            letterSpacing: '-0.02em',
+        },
+        h4: {
+            fontWeight: 700,
+            letterSpacing: '-0.02em',
+        },
+        h5: {
+            fontWeight: 600,
+        },
+        h6: {
+            fontWeight: 600,
+        },
     },
+    shape: {
+        borderRadius: 12,
+    },
+    shadows: [
+        'none',
+        '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+        '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+        '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+        '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+        '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+        ...Array(19).fill('0 25px 50px -12px rgba(0, 0, 0, 0.25)'),
+    ],
 });
 
 function App() {
@@ -109,6 +163,15 @@ function App() {
                                 <PrivateRoute>
                                     <Navbar />
                                     <BatchAnalysis />
+                                </PrivateRoute>
+                            }
+                        />
+                        <Route
+                            path="/disease-recommendation"
+                            element={
+                                <PrivateRoute>
+                                    <Navbar />
+                                    <DiseaseRecommendation />
                                 </PrivateRoute>
                             }
                         />

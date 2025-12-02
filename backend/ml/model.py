@@ -30,17 +30,22 @@ class DrugDeliveryPredictor:
             "LogBB",
             "Fraction Unionized at pH 5",
             "Mucin Binding Index",
-            "Mucosal Permeability (Papp)"
+            "Mucosal Permeability (Papp)",
+            "BBB Permeation Probability",
+            "CNS MPO Score",
+            "Lipinski Compliance"
         ]
         self.feature_importance = None
     
     def prepare_features(self, df: pd.DataFrame) -> np.ndarray:
         """Prepare features for model training/prediction"""
         # Select relevant feature columns
-        X = df[self.feature_columns].copy()
+        # Filter out non-numeric columns for scaling (Lipinski Compliance is string)
+        numeric_features = [c for c in self.feature_columns if c != "Lipinski Compliance"]
+        X = df[numeric_features].copy()
         
         # Force numeric conversion for all feature columns
-        for col in self.feature_columns:
+        for col in numeric_features:
             X[col] = pd.to_numeric(X[col], errors='coerce')
         
         # Handle missing values
@@ -70,7 +75,7 @@ class DrugDeliveryPredictor:
         logp_score = 100 - abs(row['LogP'] - 2) * 20  # Optimal LogP around 2
         logbb_score = (row['LogBB'] + 1) * 50  # Normalize LogBB
         unionized_score = row['Fraction Unionized at pH 5'] * 100
-        papp_score = row['Mucosal Permeability (Papp)'] * 10
+        papp_score = row['Mucosal Permeability (Papp)'] * 100 # Scaled for 0-1 coefficient
         tpsa_score = max(0, 100 - row['TPSA'])
         mucin_score = max(0, 100 - row['Mucin Binding Index'] * 10)
         
@@ -186,7 +191,7 @@ class DrugDeliveryPredictor:
         except Exception as e:
             return {"success": False, "error": str(e)}
     
-    def predict(self, df: pd.DataFrame) -> Dict:
+    def predict(self, df: pd.DataFrame, persona: str = "General") -> Dict:
         """Make predictions on new data"""
         try:
             # If model not trained, train it first using FULL database
@@ -224,12 +229,17 @@ class DrugDeliveryPredictor:
                         "logp": float(row["LogP"]),
                         "logbb": float(row["LogBB"]),
                         "tpsa": float(row["TPSA"]),
+                        "hbd": float(row["HBD"]),
+                        "hba": float(row["HBA"]),
+                        "papp": float(row["Mucosal Permeability (Papp)"]),
+                        "solubility": float(row["Solubility"]),
+                        "mucin": float(row["Mucin Binding Index"]),
                         "unionized_fraction": float(row["Fraction Unionized at pH 5"])
                     }
                 })
             
-            # Generate insights
-            insights = self.generate_insights(results)
+            # Generate insights based on persona
+            insights = self.generate_insights(results, persona)
             
             return {
                 "success": True,
@@ -251,40 +261,83 @@ class DrugDeliveryPredictor:
                 "error": str(e)
             }
     
-    def generate_insights(self, predictions: List[Dict]) -> List[str]:
-        """Generate AI insights from predictions"""
+    def generate_insights(self, predictions: List[Dict], persona: str = "General") -> List[str]:
+        """Generate AI insights from predictions based on selected persona"""
         insights = []
         
         # Sort by efficiency
         sorted_preds = sorted(predictions, key=lambda x: x["predicted_efficiency"], reverse=True)
-        
-        # Top performer
         top_drug = sorted_preds[0]
-        insights.append(
-            f"🏆 Top performer: {top_drug['drug_name']} with {top_drug['predicted_efficiency']}% "
-            f"predicted delivery efficiency"
-        )
-        
-        # Feature importance insights
-        if self.feature_importance:
-            top_features = sorted(self.feature_importance.items(), key=lambda x: x[1], reverse=True)[:3]
-            feature_names = [f[0] for f in top_features]
-            insights.append(
-                f"🔬 Most influential properties: {', '.join(feature_names)}"
-            )
-        
-        # General recommendations
         avg_efficiency = np.mean([p["predicted_efficiency"] for p in predictions])
-        if avg_efficiency < 50:
-            insights.append(
-                "⚡ Overall delivery efficiency is moderate. Consider optimizing LogP, "
-                "molecular weight, and fraction unionized for better results."
-            )
-        else:
-            insights.append(
-                f"✅ Good overall performance with average efficiency of {avg_efficiency:.1f}%. "
-                "Focus on top performers for further development."
-            )
+        
+        # Base insight (always included)
+        insights.append(
+            f"🏆 Top performer: {top_drug['drug_name']} ({top_drug['predicted_efficiency']}% efficiency)"
+        )
+
+        # Persona-specific insights
+        if persona == "Formulation Scientist":
+            insights.append("🧪 **Formulation Strategy:**")
+            if top_drug['properties']['logp'] > 3:
+                insights.append("• **Solubility Challenge:** High lipophilicity (LogP > 3). Recommend lipid-based nanocarriers (SLNs/NLCs) or self-emulsifying drug delivery systems (SEDDS).")
+            elif top_drug['properties']['logp'] < 1:
+                insights.append("• **Permeability Challenge:** Low lipophilicity. Essential to use permeation enhancers like Chitosan or Cyclodextrins to disrupt tight junctions.")
+            else:
+                insights.append("• **Balanced Profile:** LogP is optimal for formulation. Standard in-situ gelling systems (e.g., Poloxamer/Carbopol) are suitable.")
+            
+            if top_drug['properties']['mol_wt'] > 500:
+                insights.append("• **Stability Risk:** High molecular weight. Protect against enzymatic degradation using enzyme inhibitors or encapsulation.")
+
+        elif persona == "Nasal-to-Brain Delivery Expert":
+            insights.append("🧠 **N2B Delivery Optimization:**")
+            if top_drug['properties']['logbb'] > 0:
+                insights.append("• **Direct Transport:** Positive LogBB indicates excellent potential for direct nose-to-brain transport via the olfactory pathway.")
+            else:
+                insights.append("• **Systemic Pathway:** Low LogBB suggests transport may rely more on systemic circulation than direct neuronal transport.")
+            
+            if top_drug['properties']['mucin'] > 0.5:
+                insights.append("• **Mucoadhesion:** High mucin binding predicted. Formulation will have good residence time but may get trapped in mucus layer.")
+            
+            insights.append("• **Targeting:** Aim for the olfactory region (upper nasal cavity) using a specialized delivery device.")
+
+        elif persona == "Regulatory/QbD Expert":
+            insights.append("⚖️ **Regulatory & Safety (QbD):**")
+            violations = 0
+            if top_drug['properties']['mol_wt'] > 500: violations += 1
+            if top_drug['properties']['logp'] > 5: violations += 1
+            if top_drug['properties']['hbd'] > 5: violations += 1
+            if top_drug['properties']['hba'] > 10: violations += 1
+            
+            if violations > 0:
+                insights.append(f"• **Toxicity Signal:** {violations} Lipinski rule violation(s). Requires rigorous cytotoxicity testing (MTT assay) on nasal epithelial cells.")
+            else:
+                insights.append("• **Safety Profile:** Drug properties are Lipinski compliant, suggesting a favorable safety baseline.")
+            
+            insights.append("• **Compliance:** Ensure all excipients are listed in the FDA Inactive Ingredient Database (IID) for nasal administration.")
+
+        elif persona == "Research Mentor":
+            insights.append("🎓 **Research Guidance:**")
+            insights.append(f"• **Hypothesis:** The predicted efficiency of {top_drug['predicted_efficiency']}% suggests this candidate is {'highly promising' if top_drug['predicted_efficiency'] > 70 else 'worth investigating'}.")
+            insights.append("• **Experimental Validation:** Proceed to ex-vivo permeation studies using sheep nasal mucosa to validate these in-silico predictions.")
+            insights.append("• **Literature Context:** Search PubMed for 'intranasal pharmacokinetics' of this compound class to benchmark your findings against existing data.")
+
+        else: # General
+            # Feature importance insights
+            if self.feature_importance:
+                top_features = sorted(self.feature_importance.items(), key=lambda x: x[1], reverse=True)[:3]
+                feature_names = [f[0] for f in top_features]
+                insights.append(
+                    f"🔬 **Key Drivers:** The most influential properties for this prediction were {', '.join(feature_names)}."
+                )
+            
+            if avg_efficiency < 50:
+                insights.append(
+                    "⚡ **Optimization Needed:** Overall delivery efficiency is moderate. Consider structural modification to optimize LogP and molecular weight."
+                )
+            else:
+                insights.append(
+                    "✅ **Conclusion:** Good overall performance. This drug is a strong candidate for further development."
+                )
         
         return insights
 

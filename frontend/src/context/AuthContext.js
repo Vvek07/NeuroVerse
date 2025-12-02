@@ -95,6 +95,17 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const resetPassword = async (email) => {
+        try {
+            const response = await axios.post(`${API_URL}/api/auth/forgot-password`, {
+                email
+            });
+            return response.data;
+        } catch (error) {
+            throw new Error(error.response?.data?.detail || 'Failed to send reset email');
+        }
+    };
+
     const value = {
         user,
         userDetails,
@@ -102,7 +113,8 @@ export const AuthProvider = ({ children }) => {
         signup,
         login,
         logout,
-        refreshUserDetails
+        refreshUserDetails,
+        resetPassword
     };
 
     return (

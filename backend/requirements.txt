@@ -15,5 +15,6 @@ tensorflow
 keras
 pydantic[email]
 bcrypt==4.1.3
+google-generativeai
 passlib[bcrypt]
 python-jose[cryptography]

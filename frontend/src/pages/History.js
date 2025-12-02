@@ -132,24 +132,48 @@ const History = () => {
 
     return (
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <IconButton onClick={() => navigate(-1)} sx={{ mr: 2 }}>
-                        <ArrowBackIcon />
-                    </IconButton>
-                    <Typography variant="h4" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <HistoryIcon fontSize="large" color="primary" />
-                        Prediction History
-                    </Typography>
+            {/* Premium Gradient Header */}
+            <Box
+                className="animated-bg premium-page-header"
+                sx={{
+                    p: 4,
+                    mb: 4,
+                    background: 'linear-gradient(-45deg, #4facfe, #00f2fe, #667eea, #06b6d4)',
+                    backgroundSize: '400% 400%',
+                    borderRadius: '24px',
+                    color: 'white',
+                    boxShadow: '0 20px 60px rgba(79, 172, 254, 0.3)',
+                }}
+            >
+                <Box className="premium-page-header-content" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <IconButton onClick={() => navigate(-1)} sx={{ mr: 2, color: 'white', '&:hover': { background: 'rgba(255,255,255,0.1)' } }}>
+                            <ArrowBackIcon />
+                        </IconButton>
+                        <Box>
+                            <Typography variant="h3" sx={{ fontWeight: 700, mb: 1, textShadow: '0 2px 10px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center' }}>
+                                <HistoryIcon sx={{ mr: 2, fontSize: 45 }} />
+                                Prediction History
+                            </Typography>
+                            <Typography variant="h6" sx={{ opacity: 0.95, fontWeight: 400 }}>
+                                View and manage your past drug analysis predictions
+                            </Typography>
+                        </Box>
+                    </Box>
+                    <Button
+                        variant="contained"
+                        startIcon={<DownloadIcon />}
+                        onClick={handleExportCSV}
+                        disabled={predictions.length === 0}
+                        sx={{
+                            bgcolor: 'rgba(255,255,255,0.2)',
+                            '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' },
+                            backdropFilter: 'blur(10px)',
+                        }}
+                    >
+                        Export CSV
+                    </Button>
                 </Box>
-                <Button
-                    variant="outlined"
-                    startIcon={<DownloadIcon />}
-                    onClick={handleExportCSV}
-                    disabled={predictions.length === 0}
-                >
-                    Export CSV
-                </Button>
             </Box>
 
             {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
@@ -157,13 +181,13 @@ const History = () => {
             <TableContainer component={Paper}>
                 <Table>
                     <TableHead>
-                        <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                            <TableCell>Date</TableCell>
-                            <TableCell>Drug Name</TableCell>
-                            <TableCell align="center">Efficiency</TableCell>
-                            <TableCell align="center">Confidence</TableCell>
-                            <TableCell align="center">Type</TableCell>
-                            <TableCell align="center">Actions</TableCell>
+                        <TableRow sx={{ bgcolor: '#141212ff' }}>
+                            <TableCell sx={{ color: '#fff', fontWeight: 600 }}>Date</TableCell>
+                            <TableCell sx={{ color: '#fff', fontWeight: 600 }}>Drug Name</TableCell>
+                            <TableCell align="center" sx={{ color: '#fff', fontWeight: 600 }}>Efficiency</TableCell>
+                            <TableCell align="center" sx={{ color: '#fff', fontWeight: 600 }}>Confidence</TableCell>
+                            <TableCell align="center" sx={{ color: '#fff', fontWeight: 600 }}>Type</TableCell>
+                            <TableCell align="center" sx={{ color: '#fff', fontWeight: 600 }}>Actions</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
@@ -178,9 +202,9 @@ const History = () => {
                         ) : (
                             predictions.map((pred) => (
                                 <TableRow key={pred.prediction_id} hover>
-                                    <TableCell>{formatDate(pred.created_at)}</TableCell>
+                                    <TableCell sx={{ color: '#000' }}>{formatDate(pred.created_at)}</TableCell>
                                     <TableCell>
-                                        <Typography variant="subtitle2">
+                                        <Typography variant="subtitle2" sx={{ color: '#000' }}>
                                             {pred.drug_name}
                                         </Typography>
                                     </TableCell>
@@ -189,6 +213,7 @@ const History = () => {
                                             label={`${pred.predicted_efficiency}%`}
                                             color={pred.predicted_efficiency > 70 ? "success" : pred.predicted_efficiency > 40 ? "warning" : "error"}
                                             size="small"
+                                            sx={{ color: '#000', fontWeight: 600 }}
                                         />
                                     </TableCell>
                                     <TableCell align="center">

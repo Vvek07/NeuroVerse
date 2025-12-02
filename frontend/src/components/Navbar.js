@@ -4,14 +4,12 @@ import {
     AppBar,
     Toolbar,
     Typography,
-    Button,
     IconButton,
     Menu,
     MenuItem,
-    Box,
-    Avatar
+    Box
 } from '@mui/material';
-import { Menu as MenuIcon, AccountCircle } from '@mui/icons-material';
+import { AccountCircle, Psychology } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 
 const Navbar = () => {
@@ -37,62 +35,75 @@ const Navbar = () => {
     };
 
     return (
-        <AppBar position="static">
-            <Toolbar>
-                <Typography
-                    variant="h6"
-                    component="div"
-                    sx={{ flexGrow: 1, cursor: 'pointer' }}
-                    onClick={() => navigate('/dashboard')}
-                >
-                    NeuroVerse
-                </Typography>
-
-                {user && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
-                        <Button color="inherit" onClick={() => navigate('/batch-analysis')}>
-                            Batch Analysis
-                        </Button>
-                    </Box>
-                )}
-
-                {user && (
-                    <>
-                        <Typography variant="body2" sx={{ mr: 2 }}>
-                            {userDetails?.name || user.email}
+        <Box sx={{ px: 2, pt: 2 }}>
+            <AppBar
+                position="static"
+                elevation={0}
+                sx={{
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    borderRadius: '16px',
+                    boxShadow: '0 8px 32px 0 rgba(102, 126, 234, 0.3)',
+                }}
+            >
+                <Toolbar>
+                    <Box
+                        sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            flexGrow: 1,
+                            cursor: 'pointer',
+                            gap: 1.5
+                        }}
+                        onClick={() => navigate('/dashboard')}
+                    >
+                        <Psychology sx={{ fontSize: 32, color: 'white' }} />
+                        <Typography
+                            variant="h6"
+                            component="div"
+                            sx={{ fontWeight: 600 }}
+                        >
+                            NeuroVerse
                         </Typography>
-                        <IconButton
-                            size="large"
-                            onClick={handleMenu}
-                            color="inherit"
-                        >
-                            <AccountCircle />
-                        </IconButton>
-                        <Menu
-                            anchorEl={anchorEl}
-                            anchorOrigin={{
-                                vertical: 'top',
-                                horizontal: 'right',
-                            }}
-                            keepMounted
-                            transformOrigin={{
-                                vertical: 'top',
-                                horizontal: 'right',
-                            }}
-                            open={Boolean(anchorEl)}
-                            onClose={handleClose}
-                        >
-                            {userDetails?.role === 'admin' && (
-                                <MenuItem onClick={() => { navigate('/admin'); handleClose(); }}>
-                                    Admin Panel
-                                </MenuItem>
-                            )}
-                            <MenuItem onClick={handleLogout}>Logout</MenuItem>
-                        </Menu>
-                    </>
-                )}
-            </Toolbar>
-        </AppBar>
+                    </Box>
+
+                    {user && (
+                        <>
+                            <Typography variant="body2" sx={{ mr: 2 }}>
+                                {userDetails?.name || user.email}
+                            </Typography>
+                            <IconButton
+                                size="large"
+                                onClick={handleMenu}
+                                color="inherit"
+                            >
+                                <AccountCircle />
+                            </IconButton>
+                            <Menu
+                                anchorEl={anchorEl}
+                                anchorOrigin={{
+                                    vertical: 'top',
+                                    horizontal: 'right',
+                                }}
+                                keepMounted
+                                transformOrigin={{
+                                    vertical: 'top',
+                                    horizontal: 'right',
+                                }}
+                                open={Boolean(anchorEl)}
+                                onClose={handleClose}
+                            >
+                                {userDetails?.role === 'admin' && (
+                                    <MenuItem onClick={() => { navigate('/admin'); handleClose(); }}>
+                                        Admin Panel
+                                    </MenuItem>
+                                )}
+                                <MenuItem onClick={handleLogout}>Logout</MenuItem>
+                            </Menu>
+                        </>
+                    )}
+                </Toolbar>
+            </AppBar>
+        </Box>
     );
 };
 

@@ -156,3 +156,27 @@ async def update_profile(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+class UserForgotPassword(BaseModel):
+    email: EmailStr
+
+@router.post("/forgot-password")
+async def forgot_password(data: UserForgotPassword):
+    """Initiate password reset process"""
+    try:
+        db = get_database()
+        
+        # Check if user exists
+        user = db.users.find_one({"email": data.email})
+        if not user:
+            # For security, we don't reveal if email exists, but for this demo we'll return success
+            # In production, you would send an email here
+            pass
+            
+        # Simulate sending email
+        return {
+            "success": True,
+            "message": "If your email is registered, you will receive a password reset link shortly."
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

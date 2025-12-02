@@ -14,6 +14,20 @@ from utils.pdf_generator import generate_drug_analysis_report
 from ml.model import predictor
 from ml.comparison import compare_drugs
 from ml.recommendations import generate_recommendations
+from ml.delivery_models import (
+    calculate_bbb_permeability,
+    check_lipinski,
+    calculate_nbfs,
+    calculate_nbfs,
+    classify_bcs
+)
+from ml.decision_tree import (
+    evaluate_suitability,
+    suggest_prodrug,
+    recommend_polymer
+)
+from ml.disease_mapping import get_disease_recommendations, get_all_diseases
+
 from fastapi.responses import StreamingResponse
 
 router = APIRouter()
@@ -32,6 +46,7 @@ class RecommendationRequest(BaseModel):
 class CustomPredictionRequest(BaseModel):
     drug_name: str
     properties: Dict[str, float]
+    persona: Optional[str] = "General"
 
 @router.post("/")
 async def run_prediction(
@@ -395,14 +410,56 @@ async def predict_custom_drug(
 ):
     """Run prediction on manually entered drug parameters"""
     try:
+        # Map frontend properties to model column names
+        column_mapping = {
+            "mol_wt": "Mol Wt",
+            "logp": "LogP",
+            "logbb": "LogBB",
+            "tpsa": "TPSA",
+            "hbd": "HBD",
+            "hba": "HBA",
+            "solubility": "Solubility",
+            "papp": "Mucosal Permeability (Papp)",
+            "unionized_fraction": "Fraction Unionized at pH 5",
+            "mucin": "Mucin Binding Index",
+            "pka": "pKa",
+            "p_gp": "P-gp Substrate Probability",
+            "bbb_prob": "BBB Permeation Probability",
+            "cns_mpo": "CNS MPO Score"
+        }
+        
+        mapped_props = {}
+        for key, value in request.properties.items():
+            if key in column_mapping:
+                mapped_props[column_mapping[key]] = value
+            else:
+                mapped_props[key] = value  # Keep original if no mapping found
+                
         # Create DataFrame for model
-        df = pd.DataFrame([request.properties])
+        df = pd.DataFrame([mapped_props])
+        
+        # Ensure all expected columns exist (fill with 0 if missing)
+        expected_columns = [
+            "Mol Wt", "LogP", "LogBB", "TPSA", "HBD", "HBA", "Solubility",
+            "Mucosal Permeability (Papp)", "Fraction Unionized at pH 5",
+            "Mucin Binding Index", "pKa", "P-gp Substrate Probability",
+            "BBB Permeation Probability", "CNS MPO Score", "Lipinski Compliance"
+        ]
+        
+        for col in expected_columns:
+            if col not in df.columns:
+                print(f"Warning: Missing column {col}, filling with 0")
+                # Special handling for Lipinski Compliance (categorical)
+                if col == "Lipinski Compliance":
+                    df[col] = "yes"  # Default to yes
+                else:
+                    df[col] = 0
         
         # Add dummy name if needed by model (model uses it for display)
         df["Drug Name"] = request.drug_name
         
         # Run prediction
-        result = predictor.predict(df)
+        result = predictor.predict(df, persona=request.persona)
         
         if not result["success"]:
             raise HTTPException(
@@ -410,6 +467,49 @@ async def predict_custom_drug(
                 detail=result.get("error", "Prediction failed")
             )
             
+        # --- NEW: Calculate Advanced Scientific Metrics ---
+        # Extract properties with defaults
+        props = request.properties
+        mol_wt = props.get("mol_wt", 0)
+        log_p = props.get("logp", 0)
+        log_bb = props.get("logbb", 0)
+        tpsa = props.get("tpsa", 0)
+        hbd = props.get("hbd", 0)
+        hba = props.get("hba", 0)
+        papp = props.get("papp", 0)
+        solubility = props.get("solubility", -5)
+        
+        # 1. Delivery Models
+        bbb_data = calculate_bbb_permeability(log_bb)
+        nbfs_data = calculate_nbfs({
+            "LogP": log_p, "Mol Wt": mol_wt, "TPSA": tpsa, 
+            "Mucosal Permeability (Papp)": papp, "Solubility": solubility
+        })
+        lipinski_data = check_lipinski(mol_wt, log_p, hbd, hba)
+        bcs_data = classify_bcs(solubility, papp)
+        
+        # 2. Decision Tree Logic
+        suitability = evaluate_suitability({
+            "Mol Wt": mol_wt, "LogP": log_p, "Mucosal Permeability (Papp)": papp
+        })
+        prodrug_suggestions = suggest_prodrug({"LogP": log_p, "Solubility": solubility})
+        polymer_recs = recommend_polymer({
+            "Mucin Binding Index": props.get("mucin", 0),
+            "Solubility": solubility
+        })
+        
+        # 3. Consolidate Advanced Analysis
+        advanced_analysis = {
+            "bbb_permeability": bbb_data,
+            "nbfs_score": nbfs_data,
+            "lipinski": lipinski_data,
+            "bcs_class": bcs_data,
+            "suitability": suitability,
+            "prodrug_suggestions": prodrug_suggestions,
+            "polymer_recommendations": polymer_recs
+        }
+        # --------------------------------------------------
+
         # Save prediction
         db = get_database()
         prediction_id = str(uuid.uuid4())
@@ -426,7 +526,8 @@ async def predict_custom_drug(
             "properties": request.properties,
             "predicted_efficiency": pred_data["predicted_efficiency"],
             "confidence_score": pred_data["confidence_score"],
-            "insights": result["insights"]
+            "insights": result["insights"],
+            "advanced_analysis": advanced_analysis  # Save new data
         }
         
         db.predictions.insert_one(prediction_doc)
@@ -437,7 +538,7 @@ async def predict_custom_drug(
             {"$inc": {"total_predictions": 1}}
         )
         
-        # Generate recommendations
+        # Generate recommendations (Legacy function, keeping for compatibility)
         recommendations = generate_recommendations(request.properties)
 
         # Auto-save new drug to global database
@@ -473,9 +574,126 @@ async def predict_custom_drug(
             "result": pred_data,
             "insights": result["insights"],
             "feature_importance": result["feature_importance"],
-            "recommendations": recommendations
+            "recommendations": recommendations,
+            "advanced_analysis": advanced_analysis # Return new data
         }
         
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/disease/{disease_name}")
+async def get_disease_info(
+    disease_name: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get recommendations for a specific disease"""
+    try:
+        info = get_disease_recommendations(disease_name)
+        if not info:
+            raise HTTPException(status_code=404, detail="Disease not found")
+            
+        return {
+            "success": True,
+            "disease": disease_name,
+            "info": info
+        }
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+@router.get("/pubmed/{drug_name}")
+async def get_pubmed_research(
+    drug_name: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Fetch research papers from PubMed"""
+    try:
+        papers = fetch_pubmed_data(drug_name)
+        return {
+            "success": True,
+            "drug_name": drug_name,
+            "papers": papers
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/compare-standard")
+async def compare_with_standards(
+    request: CustomPredictionRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Compare custom drug with standard CNS drugs"""
+    try:
+        # Standard CNS drugs data (hardcoded for now, or fetch from DB)
+        standards = [
+            {"name": "Diazepam", "efficiency": 85.5, "logp": 2.82, "mol_wt": 284.7},
+            {"name": "L-Dopa", "efficiency": 62.3, "logp": -2.39, "mol_wt": 197.2},
+            {"name": "Progesterone", "efficiency": 78.9, "logp": 3.87, "mol_wt": 314.5},
+            {"name": "Clonazepam", "efficiency": 82.1, "logp": 2.53, "mol_wt": 315.7}
+        ]
+        
+        # Map frontend properties to model column names
+        column_mapping = {
+            "mol_wt": "Mol Wt",
+            "logp": "LogP",
+            "logbb": "LogBB",
+            "tpsa": "TPSA",
+            "hbd": "HBD",
+            "hba": "HBA",
+            "solubility": "Solubility",
+            "papp": "Mucosal Permeability (Papp)",
+            "unionized_fraction": "Fraction Unionized at pH 5",
+            "mucin": "Mucin Binding Index",
+            "pka": "pKa",
+            "p_gp": "P-gp Substrate Probability",
+            "bbb_prob": "BBB Permeation Probability",
+            "cns_mpo": "CNS MPO Score"
+        }
+        
+        mapped_props = {}
+        for key, value in request.properties.items():
+            if key in column_mapping:
+                mapped_props[column_mapping[key]] = value
+            else:
+                mapped_props[key] = value
+        
+        # Predict for user drug
+        df = pd.DataFrame([mapped_props])
+        
+        # Ensure all expected columns exist (fill with 0 if missing)
+        expected_columns = [
+            "Mol Wt", "LogP", "LogBB", "TPSA", "HBD", "HBA", "Solubility",
+            "Mucosal Permeability (Papp)", "Fraction Unionized at pH 5",
+            "Mucin Binding Index", "pKa", "P-gp Substrate Probability",
+            "BBB Permeation Probability", "CNS MPO Score"
+        ]
+        
+        for col in expected_columns:
+            if col not in df.columns:
+                df[col] = 0
+                
+        df["Drug Name"] = request.drug_name
+        result = predictor.predict(df)
+        
+        if not result["success"]:
+             raise HTTPException(status_code=500, detail="Prediction failed")
+             
+        user_efficiency = result["predictions"][0]["predicted_efficiency"]
+        
+        comparison_data = [
+            {"name": request.drug_name, "efficiency": user_efficiency, "is_user": True, "logp": request.properties.get("logp"), "mol_wt": request.properties.get("mol_wt")}
+        ] + standards
+        
+        # Sort by efficiency
+        comparison_data.sort(key=lambda x: x["efficiency"], reverse=True)
+        
+        return {
+            "success": True,
+            "comparison": comparison_data
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -610,5 +828,40 @@ async def download_prediction_report(
         
     except HTTPException as he:
         raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+# Disease endpoints
+@router.get('/diseases/list')
+def get_disease_list():
+    from ml.disease_mapping import get_all_diseases
+    try:
+        diseases = get_all_diseases()
+        return {'success': True, 'diseases': diseases}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get('/disease/{disease_name}')
+def get_disease_info(disease_name: str):
+    from ml.disease_mapping import get_disease_recommendations
+    try:
+        info = get_disease_recommendations(disease_name)
+        if not info:
+            raise HTTPException(status_code=404, detail='Disease not found')
+        return {'success': True, 'info': info}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# PubMed endpoint
+@router.get('/pubmed/{drug_name}')
+def get_pubmed_research(drug_name: str, current_user: dict = Depends(get_current_user)):
+    from services.pubmed_service import fetch_pubmed_data
+    try:
+        papers = fetch_pubmed_data(drug_name)
+        return {'success': True, 'papers': papers}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

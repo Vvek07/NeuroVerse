@@ -1,0 +1,414 @@
+/* NeuroVerse - Premium Pharmaceutical Lab Design System */
+
+:root {
+    /* Primary Pharmaceutical Colors */
+    --pharma-primary: #1e3a8a;
+    /* Deep Medical Blue */
+    --pharma-primary-light: #3b82f6;
+    /* Bright Blue */
+    --pharma-primary-dark: #1e40af;
+    /* Dark Blue */
+
+    --pharma-secondary: #7c3aed;
+    /* Medical Purple */
+    --pharma-secondary-light: #a78bfa;
+    /* Light Purple */
+    --pharma-secondary-dark: #6d28d9;
+    /* Dark Purple */
+
+    --pharma-accent: #06b6d4;
+    /* Cyan Accent */
+    --pharma-accent-light: #22d3ee;
+    /* Light Cyan */
+
+    --pharma-success: #10b981;
+    /* Medical Green */
+    --pharma-warning: #f59e0b;
+    /* Amber Warning */
+    --pharma-danger: #ef4444;
+    /* Red Alert */
+
+    /* Neutral Lab Colors */
+    --lab-white: #ffffff;
+    --lab-gray-50: #f9fafb;
+    --lab-gray-100: #f3f4f6;
+    --lab-gray-200: #e5e7eb;
+    --lab-gray-300: #d1d5db;
+    --lab-gray-700: #374151;
+    --lab-gray-900: #111827;
+
+    /* Glassmorphism */
+    --glass-bg: rgba(255, 255, 255, 0.1);
+    --glass-border: rgba(255, 255, 255, 0.2);
+    --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --gradient-lab: linear-gradient(135deg, #1e3a8a 0%, #7c3aed 50%, #06b6d4 100%);
+    --gradient-success: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+    --gradient-card: linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.85) 100%);
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    --shadow-glow: 0 0 20px rgba(103, 126, 234, 0.3);
+
+    /* Transitions */
+    --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-base: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: 500ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Global Styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', 'Segoe UI', 'Roboto', sans-serif;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    background-attachment: fixed;
+    min-height: 100vh;
+    color: var(--lab-gray-900);
+    line-height: 1.6;
+}
+
+/* Glassmorphism Cards */
+.glass-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    box-shadow: var(--glass-shadow);
+    transition: all var(--transition-base);
+}
+
+.glass-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.25);
+}
+
+/* Premium Cards */
+.premium-card {
+    background: var(--gradient-card);
+    border-radius: 20px;
+    padding: 24px;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    transition: all var(--transition-base);
+    position: relative;
+    overflow: hidden;
+}
+
+.premium-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--gradient-lab);
+}
+
+.premium-card:hover {
+    transform: translateY(-8px);
+    box-shadow: var(--shadow-xl), var(--shadow-glow);
+}
+
+/* Gradient Buttons */
+.btn-gradient-primary {
+    background: var(--gradient-primary);
+    color: white;
+    border: none;
+    padding: 12px 32px;
+    border-radius: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-base);
+    box-shadow: var(--shadow-md);
+}
+
+.btn-gradient-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg), var(--shadow-glow);
+}
+
+.btn-gradient-lab {
+    background: var(--gradient-lab);
+    color: white;
+    border: none;
+    padding: 12px 32px;
+    border-radius: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-base);
+    box-shadow: var(--shadow-md);
+}
+
+.btn-gradient-lab:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+/* Animated Background */
+.animated-bg {
+    background: linear-gradient(-45deg, #667eea, #764ba2, #1e3a8a, #06b6d4);
+    background-size: 400% 400%;
+    animation: gradientShift 15s ease infinite;
+}
+
+@keyframes gradientShift {
+    0% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+/* Floating Animation */
+@keyframes float {
+
+    0%,
+    100% {
+        transform: translateY(0px);
+    }
+
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+.float-animation {
+    animation: float 3s ease-in-out infinite;
+}
+
+/* Pulse Glow */
+@keyframes pulseGlow {
+
+    0%,
+    100% {
+        box-shadow: 0 0 20px rgba(103, 126, 234, 0.3);
+    }
+
+    50% {
+        box-shadow: 0 0 40px rgba(103, 126, 234, 0.6);
+    }
+}
+
+.pulse-glow {
+    animation: pulseGlow 2s ease-in-out infinite;
+}
+
+/* Data Visualization Enhancements */
+.chart-container {
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--lab-gray-200);
+    transition: all var(--transition-base);
+}
+
+.chart-container:hover {
+    box-shadow: var(--shadow-xl);
+}
+
+/* Status Badges */
+.badge-success {
+    background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+    color: white;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    display: inline-block;
+    box-shadow: var(--shadow-sm);
+}
+
+.badge-warning {
+    background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+    color: white;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    display: inline-block;
+    box-shadow: var(--shadow-sm);
+}
+
+/* Loading Spinner */
+.pharma-spinner {
+    border: 4px solid var(--lab-gray-200);
+    border-top: 4px solid var(--pharma-primary);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+    width: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--lab-gray-100);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--gradient-primary);
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--pharma-primary-dark);
+}
+
+/* Typography */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--lab-gray-900);
+}
+
+.text-gradient {
+    background: var(--gradient-lab);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Input Fields */
+.pharma-input {
+    background: white;
+    border: 2px solid var(--lab-gray-200);
+    border-radius: 12px;
+    padding: 12px 16px;
+    font-size: 1rem;
+    transition: all var(--transition-fast);
+    width: 100%;
+}
+
+.pharma-input:focus {
+    outline: none;
+    border-color: var(--pharma-primary);
+    box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.1);
+}
+
+/* Table Styling */
+.pharma-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow-md);
+}
+
+.pharma-table thead {
+    background: var(--gradient-lab);
+    color: white;
+}
+
+.pharma-table th {
+    padding: 16px;
+    text-align: left;
+    font-weight: 600;
+}
+
+.pharma-table td {
+    padding: 16px;
+    border-bottom: 1px solid var(--lab-gray-200);
+}
+
+.pharma-table tbody tr:hover {
+    background: var(--lab-gray-50);
+}
+
+/* Tooltip */
+.pharma-tooltip {
+    position: relative;
+    display: inline-block;
+}
+
+.pharma-tooltip .tooltip-text {
+    visibility: hidden;
+    background: var(--lab-gray-900);
+    color: white;
+    text-align: center;
+    padding: 8px 12px;
+    border-radius: 8px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+    font-size: 0.875rem;
+    white-space: nowrap;
+}
+
+.pharma-tooltip:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .premium-card {
+        padding: 16px;
+    }
+
+    .btn-gradient-primary,
+    .btn-gradient-lab {
+        padding: 10px 24px;
+        font-size: 0.875rem;
+    }
+}
+
+/* Accessibility */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
+
+/* Focus Visible */
+*:focus-visible {
+    outline: 2px solid var(--pharma-primary);
+    outline-offset: 2px;
+}

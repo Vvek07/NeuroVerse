@@ -49,9 +49,11 @@ const CompareTarget = () => {
 
     const fetchAllDrugs = async () => {
         try {
-            const response = await api.get('/api/drugs/drugs');
+            const response = await api.get('/api/drugs/list');
             if (response.data.success) {
-                setAllDrugs(response.data.drugs);
+                // Map to drug names for autocomplete
+                const drugNames = response.data.drugs.map(drug => drug['Drug Name']);
+                setAllDrugs(drugNames);
             }
         } catch (err) {
             setError('Failed to load drug list');
@@ -121,54 +123,96 @@ const CompareTarget = () => {
         }
     ] : [];
 
+    // Advanced Pharmaceutical Analysis Logic
+    const calculateLipinski = (drug) => {
+        if (!drug) return null;
+        const violations = [];
+        const props = drug.properties;
+        if (props['mol_wt'] > 500) violations.push('MW > 500');
+        if (props['logp'] > 5) violations.push('LogP > 5');
+        if (props['hbd'] > 5) violations.push('HBD > 5');
+        if (props['hba'] > 10) violations.push('HBA > 10');
+        return {
+            compliant: violations.length <= 1,
+            violations,
+            score: 4 - violations.length
+        };
+    };
+
+    const calculateDrugLikeness = (drug) => {
+        if (!drug) return 0;
+        let score = 100;
+        const props = drug.properties;
+        // Penalize for Lipinski violations
+        const lipinski = calculateLipinski(drug);
+        score -= lipinski.violations.length * 20;
+        // Penalize for low solubility
+        if (props['solubility'] && props['solubility'] < -4) score -= 10;
+        // Bonus for good BBB permeation
+        if (props['logbb'] && props['logbb'] > -1) score += 10;
+        return Math.max(0, Math.min(100, score));
+    };
+
+    const getPropertyDelta = (prop, val1, val2) => {
+        const diff = val1 - val2;
+        const percent = val2 !== 0 ? ((diff / Math.abs(val2)) * 100).toFixed(1) : '0';
+        return { diff: diff.toFixed(2), percent, higher: diff > 0 };
+    };
+
     return (
-        <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-                <IconButton onClick={() => navigate(-1)} sx={{ mr: 2 }}>
-                    <ArrowBackIcon />
-                </IconButton>
-                <Typography variant="h4" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <CompareArrows fontSize="large" color="primary" />
-                    Drug Comparison
-                </Typography>
+        <Container maxWidth="xl" sx={{ mt: 4, mb: 8 }}>
+            {/* Premium Gradient Header */}
+            <Box
+                className="animated-bg premium-page-header"
+                sx={{
+                    p: 5,
+                    mb: 5,
+                    background: 'linear-gradient(135deg, #1e3a8a 0%, #7c3aed 50%, #f50057 100%)',
+                    borderRadius: '32px',
+                    color: 'white',
+                    boxShadow: '0 20px 80px rgba(124, 58, 237, 0.4)',
+                    position: 'relative',
+                    overflow: 'hidden'
+                }}
+            >
+                <Box sx={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center' }}>
+                    <IconButton onClick={() => navigate(-1)} sx={{ mr: 3, color: 'white', bgcolor: 'rgba(255,255,255,0.15)', '&:hover': { bgcolor: 'rgba(255,255,255,0.25)' } }}>
+                        <ArrowBackIcon />
+                    </IconButton>
+                    <Box>
+                        <Typography variant="h2" sx={{ fontWeight: 800, mb: 1, letterSpacing: '-1px', textShadow: '0 4px 20px rgba(0,0,0,0.3)' }}>
+                            Advanced Drug Comparison
+                        </Typography>
+                        <Typography variant="h6" sx={{ opacity: 0.9, fontWeight: 400, maxWidth: '800px' }}>
+                            Comprehensive pharmaceutical profiling, Lipinski compliance analysis, and nose-to-brain delivery efficiency benchmarking.
+                        </Typography>
+                    </Box>
+                </Box>
             </Box>
 
-            <Paper sx={{ p: 3, mb: 3 }}>
-                <Typography variant="body1" color="text.secondary" paragraph>
-                    Select two drugs from the database to compare their nose-to-brain delivery efficiency and properties.
-                </Typography>
-
-                <Grid container spacing={3}>
-                    <Grid item xs={12} md={6}>
+            <Paper className="premium-input-card" sx={{ p: 4, mb: 6, borderRadius: '24px', background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(20px)' }}>
+                <Grid container spacing={4} alignItems="center">
+                    <Grid item xs={12} md={5}>
                         <Autocomplete
                             options={allDrugs}
                             value={drug1}
-                            onChange={(event, newValue) => setDrug1(newValue)}
-                            renderInput={(params) => (
-                                <TextField
-                                    {...params}
-                                    label="Select Drug 1"
-                                    placeholder="Type to search..."
-                                />
-                            )}
+                            onChange={(e, v) => setDrug1(v)}
+                            renderInput={(params) => <TextField {...params} label="Reference Drug (A)" variant="filled" />}
                         />
                     </Grid>
-
-                    <Grid item xs={12} md={6}>
+                    <Grid item xs={12} md={2} sx={{ textAlign: 'center' }}>
+                        <Box sx={{ p: 2, borderRadius: '50%', bgcolor: '#f0f4ff', display: 'inline-flex' }}>
+                            <CompareArrows sx={{ fontSize: 40, color: '#1e3a8a' }} />
+                        </Box>
+                    </Grid>
+                    <Grid item xs={12} md={5}>
                         <Autocomplete
                             options={allDrugs}
                             value={drug2}
-                            onChange={(event, newValue) => setDrug2(newValue)}
-                            renderInput={(params) => (
-                                <TextField
-                                    {...params}
-                                    label="Select Drug 2"
-                                    placeholder="Type to search..."
-                                />
-                            )}
+                            onChange={(e, v) => setDrug2(v)}
+                            renderInput={(params) => <TextField {...params} label="Comparator Drug (B)" variant="filled" />}
                         />
                     </Grid>
-
                     <Grid item xs={12}>
                         <Button
                             variant="contained"
@@ -176,181 +220,260 @@ const CompareTarget = () => {
                             disabled={!drug1 || !drug2 || loading}
                             fullWidth
                             size="large"
-                            startIcon={loading ? <CircularProgress size={20} /> : <CompareArrows />}
+                            sx={{
+                                py: 2,
+                                fontSize: '1.1rem',
+                                fontWeight: 700,
+                                background: 'linear-gradient(90deg, #1e3a8a, #7c3aed)',
+                                boxShadow: '0 10px 30px rgba(30, 58, 138, 0.3)'
+                            }}
                         >
-                            {loading ? 'Running Comparison...' : 'Compare Drugs'}
+                            {loading ? <CircularProgress size={26} color="inherit" /> : 'Run Advanced Analysis'}
                         </Button>
                     </Grid>
                 </Grid>
-
-                {error && (
-                    <Alert severity="error" sx={{ mt: 2 }}>
-                        {error}
-                    </Alert>
-                )}
+                {error && <Alert severity="error" sx={{ mt: 3 }}>{error}</Alert>}
             </Paper>
 
             {comparisonResult && (
-                <>
-                    {/* Winner Banner */}
-                    <Paper
-                        sx={{
-                            p: 3,
-                            mb: 3,
-                            background: 'linear-gradient(45deg, #2e7d32 30%, #4caf50 90%)',
-                            color: 'white'
-                        }}
-                    >
-                        <Typography variant="h5" align="center" gutterBottom>
-                            🏆 Winner: {comparisonResult.winner}
-                        </Typography>
-                        <Typography variant="h6" align="center">
-                            {comparisonResult.efficiency_difference}% Higher Efficiency
-                        </Typography>
-                    </Paper>
-
-                    {/* Dual Card Comparison */}
-                    <Grid container spacing={3} sx={{ mb: 3 }}>
-                        <Grid item xs={12} md={6}>
-                            <Card sx={{ height: '100%', borderTop: '4px solid #1976d2' }}>
-                                <CardContent>
-                                    <Typography variant="h5" color="primary" gutterBottom>
-                                        {comparisonResult.drug1.drug_name}
-                                    </Typography>
-                                    <Divider sx={{ my: 2 }} />
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                                        <Typography variant="body1" color="text.secondary">Predicted Efficiency</Typography>
-                                        <Typography variant="h4" color="primary">
-                                            {comparisonResult.drug1.predicted_efficiency}%
-                                        </Typography>
-                                    </Box>
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <Typography variant="body2" color="text.secondary">Confidence Score</Typography>
-                                        <Typography variant="body1">
-                                            {comparisonResult.drug1.confidence_score}%
-                                        </Typography>
+                <Box className="fade-in">
+                    {/* 1. Executive Summary & Winner */}
+                    <Grid container spacing={4} sx={{ mb: 6 }}>
+                        <Grid item xs={12} md={4}>
+                            <Card sx={{ height: '100%', borderRadius: '24px', background: 'linear-gradient(145deg, #00c853, #64dd17)', color: 'white', boxShadow: '0 15px 40px rgba(0, 200, 83, 0.3)' }}>
+                                <CardContent sx={{ textAlign: 'center', py: 5 }}>
+                                    <Typography variant="overline" sx={{ opacity: 0.8, fontSize: '0.9rem', fontWeight: 600 }}>Superior Candidate</Typography>
+                                    <Typography variant="h3" sx={{ fontWeight: 800, my: 2 }}>{comparisonResult.winner}</Typography>
+                                    <Box sx={{ bgcolor: 'rgba(255,255,255,0.2)', py: 1, px: 3, borderRadius: '50px', display: 'inline-block' }}>
+                                        <Typography variant="h6" sx={{ fontWeight: 700 }}>+{comparisonResult.efficiency_difference}% Efficiency</Typography>
                                     </Box>
                                 </CardContent>
                             </Card>
                         </Grid>
-
-                        <Grid item xs={12} md={6}>
-                            <Card sx={{ height: '100%', borderTop: '4px solid #ed6c02' }}>
+                        <Grid item xs={12} md={8}>
+                            <Card sx={{ height: '100%', borderRadius: '24px', p: 2 }}>
                                 <CardContent>
-                                    <Typography variant="h5" sx={{ color: '#ed6c02' }} gutterBottom>
-                                        {comparisonResult.drug2.drug_name}
+                                    <Typography variant="h6" gutterBottom color="text.secondary">AI Analysis Summary</Typography>
+                                    <Typography variant="body1" sx={{ fontSize: '1.1rem', lineHeight: 1.8, color: '#334155' }}>
+                                        {comparisonResult.comparison_analysis}
                                     </Typography>
-                                    <Divider sx={{ my: 2 }} />
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                                        <Typography variant="body1" color="text.secondary">Predicted Efficiency</Typography>
-                                        <Typography variant="h4" sx={{ color: '#ed6c02' }}>
-                                            {comparisonResult.drug2.predicted_efficiency}%
-                                        </Typography>
-                                    </Box>
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <Typography variant="body2" color="text.secondary">Confidence Score</Typography>
-                                        <Typography variant="body1">
-                                            {comparisonResult.drug2.confidence_score}%
-                                        </Typography>
-                                    </Box>
                                 </CardContent>
                             </Card>
                         </Grid>
                     </Grid>
 
-                    {/* Bar Chart */}
-                    <Paper sx={{ p: 3, mb: 3 }}>
-                        <Typography variant="h6" gutterBottom>
-                            Efficiency Comparison
-                        </Typography>
-                        <ResponsiveContainer width="100%" height={300}>
-                            <BarChart data={barData}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="name" />
-                                <YAxis label={{ value: 'Efficiency (%)', angle: -90, position: 'insideLeft' }} />
-                                <Tooltip />
-                                <Legend />
-                                <Bar dataKey="efficiency" fill="#1976d2" name="Efficiency" />
-                            </BarChart>
-                        </ResponsiveContainer>
+                    {/* 2. Detailed Property Comparison Table */}
+                    <Typography variant="h4" sx={{ mb: 3, fontWeight: 700, color: '#1e293b' }}>🔬 Physicochemical Profile Delta</Typography>
+                    <Paper sx={{ mb: 6, borderRadius: '24px', overflow: 'hidden', boxShadow: '0 10px 40px rgba(0,0,0,0.05)' }}>
+                        <Box sx={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 0.5fr', bgcolor: '#f8fafc', p: 3, borderBottom: '1px solid #e2e8f0' }}>
+                            <Typography variant="subtitle2" color="text.secondary">PROPERTY</Typography>
+                            <Typography variant="subtitle2" color="primary" sx={{ fontWeight: 700 }}>{comparisonResult.drug1.drug_name}</Typography>
+                            <Typography variant="subtitle2" color="secondary" sx={{ fontWeight: 700 }}>{comparisonResult.drug2.drug_name}</Typography>
+                            <Typography variant="subtitle2" color="text.secondary">DIFFERENCE</Typography>
+                            <Typography variant="subtitle2" color="text.secondary" textAlign="center">BETTER</Typography>
+                        </Box>
+                        {[
+                            { key: 'mol_wt', label: 'Molecular Weight (g/mol)', lowerIsBetter: true },
+                            { key: 'logp', label: 'LogP (Lipophilicity)', optimal: 2 },
+                            { key: 'tpsa', label: 'TPSA (Å²)', lowerIsBetter: true },
+                            { key: 'hbd', label: 'H-Bond Donors', lowerIsBetter: true },
+                            { key: 'hba', label: 'H-Bond Acceptors', lowerIsBetter: true },
+                            { key: 'logbb', label: 'LogBB (Brain Permeation)', lowerIsBetter: false },
+                            { key: 'papp', label: 'Mucosal Permeability', lowerIsBetter: false }
+                        ].map((item, i) => {
+                            const val1 = comparisonResult.drug1.properties[item.key];
+                            const val2 = comparisonResult.drug2.properties[item.key];
+                            const delta = getPropertyDelta(item.key, val1, val2);
+
+                            // Determine which is better based on property type
+                            let drug1Better = false;
+                            if (item.optimal !== undefined) {
+                                // Optimal value - closer is better
+                                drug1Better = Math.abs(val1 - item.optimal) < Math.abs(val2 - item.optimal);
+                            } else if (item.lowerIsBetter) {
+                                drug1Better = val1 < val2;
+                            } else {
+                                drug1Better = val1 > val2;
+                            }
+
+                            return (
+                                <Box key={i} sx={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 0.5fr', p: 3, borderBottom: '1px solid #f1f5f9', '&:hover': { bgcolor: '#f8fafc' } }}>
+                                    <Typography variant="body1" sx={{ fontWeight: 500 }}>{item.label}</Typography>
+                                    <Typography variant="body1" sx={{ fontWeight: 600, color: '#1e3a8a' }}>{Number(val1).toFixed(2)}</Typography>
+                                    <Typography variant="body1" sx={{ fontWeight: 600, color: '#7c3aed' }}>{Number(val2).toFixed(2)}</Typography>
+                                    <Typography variant="body1" sx={{ color: delta.higher ? '#10b981' : '#ef4444', fontWeight: 600 }}>
+                                        {delta.diff > 0 ? '+' : ''}{delta.diff} ({delta.diff > 0 ? '+' : ''}{delta.percent}%)
+                                    </Typography>
+                                    <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                                        <Box sx={{
+                                            width: 12,
+                                            height: 12,
+                                            borderRadius: '50%',
+                                            bgcolor: drug1Better ? '#1e3a8a' : '#7c3aed',
+                                            boxShadow: `0 0 8px ${drug1Better ? '#1e3a8a' : '#7c3aed'}`
+                                        }} />
+                                    </Box>
+                                </Box>
+                            );
+                        })}
                     </Paper>
 
-                    {/* Radar Chart */}
-                    <Paper sx={{ p: 3, mb: 3 }}>
-                        <Typography variant="h6" gutterBottom>
-                            Property Comparison
-                        </Typography>
-                        <ResponsiveContainer width="100%" height={400}>
-                            <RadarChart data={radarData}>
-                                <PolarGrid />
-                                <PolarAngleAxis dataKey="category" />
-                                <PolarRadiusAxis />
-                                <Radar
-                                    name={comparisonResult.drug1.drug_name}
-                                    dataKey={comparisonResult.drug1.drug_name}
-                                    stroke="#1976d2"
-                                    fill="#1976d2"
-                                    fillOpacity={0.6}
-                                />
-                                <Radar
-                                    name={comparisonResult.drug2.drug_name}
-                                    dataKey={comparisonResult.drug2.drug_name}
-                                    stroke="#ed6c02"
-                                    fill="#ed6c02"
-                                    fillOpacity={0.6}
-                                />
-                                <Legend />
-                            </RadarChart>
-                        </ResponsiveContainer>
-                    </Paper>
+                    {/* Traffic Light Efficiency Analysis */}
+                    <Typography variant="h4" sx={{ mb: 3, fontWeight: 700, color: '#1e293b' }}>🚦 Efficiency Traffic Light Analysis</Typography>
+                    <Grid container spacing={3} sx={{ mb: 6 }}>
+                        {[comparisonResult.drug1, comparisonResult.drug2].map((drug, idx) => {
+                            const eff = drug.predicted_efficiency;
+                            const color = idx === 0 ? '#1e3a8a' : '#7c3aed';
 
-                    {/* Detailed Analysis */}
-                    <Paper sx={{ p: 3 }}>
-                        <Typography variant="h6" gutterBottom>
-                            Detailed Analysis
-                        </Typography>
-                        <Typography variant="body1" component="div" sx={{ whiteSpace: 'pre-line', lineHeight: 1.8 }}>
-                            {comparisonResult.comparison_analysis}
-                        </Typography>
-                    </Paper>
+                            // Traffic light logic
+                            let trafficColor, trafficLabel, trafficExplanation;
+                            if (eff >= 70) {
+                                trafficColor = '#10b981';
+                                trafficLabel = 'EXCELLENT';
+                                trafficExplanation = 'High efficiency for nose-to-brain delivery. This drug shows outstanding potential for direct CNS targeting via the nasal route.';
+                            } else if (eff >= 50) {
+                                trafficColor = '#f59e0b';
+                                trafficLabel = 'MODERATE';
+                                trafficExplanation = 'Acceptable efficiency but may require formulation optimization. Consider using permeation enhancers or nanocarrier systems.';
+                            } else {
+                                trafficColor = '#ef4444';
+                                trafficLabel = 'LOW';
+                                trafficExplanation = 'Limited nose-to-brain delivery potential. Significant formulation challenges expected. May need structural modification.';
+                            }
 
-                    {/* ML Model Performance Info */}
-                    <Paper sx={{ p: 3, mt: 3, bgcolor: '#f9f9f9' }}>
-                        <Typography variant="h6" gutterBottom>
-                            🏆 ML Model Used: Random Forest Regressor
-                        </Typography>
-                        <Typography variant="body2" paragraph color="text.secondary">
-                            This comparison uses a Random Forest model, chosen for its superior performance in predicting nose-to-brain delivery efficiency.
-                        </Typography>
-                        <Grid container spacing={2}>
-                            <Grid item xs={12} sm={4}>
-                                <Card variant="outlined">
-                                    <CardContent>
-                                        <Typography variant="caption" color="text.secondary">Random Forest</Typography>
-                                        <Typography variant="h5" color="success.main">R² = 0.87</Typography>
-                                        <Typography variant="caption">Best Model ✓</Typography>
-                                    </CardContent>
-                                </Card>
-                            </Grid>
-                            <Grid item xs={12} sm={4}>
-                                <Card variant="outlined">
-                                    <CardContent>
-                                        <Typography variant="caption" color="text.secondary">ANN (Neural Network)</Typography>
-                                        <Typography variant="h5">R² = 0.82</Typography>
-                                    </CardContent>
-                                </Card>
-                            </Grid>
-                            <Grid item xs={12} sm={4}>
-                                <Card variant="outlined">
-                                    <CardContent>
-                                        <Typography variant="caption" color="text.secondary">SVR</Typography>
-                                        <Typography variant="h5">R² = 0.79</Typography>
-                                    </CardContent>
-                                </Card>
-                            </Grid>
+                            return (
+                                <Grid item xs={12} md={6} key={idx}>
+                                    <Card sx={{ borderRadius: '24px', borderLeft: `8px solid ${color}`, height: '100%' }}>
+                                        <CardContent sx={{ p: 4 }}>
+                                            <Typography variant="h5" sx={{ color, fontWeight: 700, mb: 3 }}>{drug.drug_name}</Typography>
+
+                                            {/* Traffic Light Indicator */}
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, mb: 3 }}>
+                                                <Box sx={{
+                                                    width: 100,
+                                                    height: 100,
+                                                    borderRadius: '50%',
+                                                    bgcolor: trafficColor,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    boxShadow: `0 0 30px ${trafficColor}`,
+                                                    animation: 'pulse 2s ease-in-out infinite',
+                                                    '@keyframes pulse': {
+                                                        '0%, 100%': { opacity: 1 },
+                                                        '50%': { opacity: 0.7 }
+                                                    }
+                                                }}>
+                                                    <Typography sx={{ color: 'white', fontWeight: 900, fontSize: '1.75rem' }}>{eff}%</Typography>
+                                                </Box>
+                                                <Box>
+                                                    <Typography variant="h6" sx={{ fontWeight: 700, color: trafficColor, mb: 0.5 }}>{trafficLabel}</Typography>
+                                                    <Typography variant="caption" color="text.secondary">Efficiency Rating</Typography>
+                                                </Box>
+                                            </Box>
+
+                                            {/* Explanation */}
+                                            <Box sx={{ p: 2, bgcolor: '#f8fafc', borderRadius: '12px', borderLeft: `4px solid ${trafficColor}` }}>
+                                                <Typography variant="body2" sx={{ lineHeight: 1.7, color: '#475569' }}>
+                                                    {trafficExplanation}
+                                                </Typography>
+                                            </Box>
+
+                                            {/* Confidence */}
+                                            <Box sx={{ mt: 3, pt: 2, borderTop: '1px solid #e2e8f0' }}>
+                                                <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>Model Confidence</Typography>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                                    <Box sx={{ flex: 1, height: 8, bgcolor: '#e2e8f0', borderRadius: 4, overflow: 'hidden' }}>
+                                                        <Box sx={{ width: `${drug.confidence_score}%`, height: '100%', bgcolor: color, transition: 'width 0.5s' }} />
+                                                    </Box>
+                                                    <Typography variant="body2" sx={{ fontWeight: 700, minWidth: '60px' }}>{drug.confidence_score}%</Typography>
+                                                </Box>
+                                            </Box>
+                                        </CardContent>
+                                    </Card>
+                                </Grid>
+                            );
+                        })}
+                    </Grid>
+
+                    {/* 3. Advanced Metrics: Lipinski & Drug-Likeness */}
+                    <Grid container spacing={4} sx={{ mb: 6 }}>
+                        {[comparisonResult.drug1, comparisonResult.drug2].map((drug, idx) => {
+                            const lipinski = calculateLipinski(drug);
+                            const likeness = calculateDrugLikeness(drug);
+                            const color = idx === 0 ? '#1e3a8a' : '#7c3aed';
+
+                            return (
+                                <Grid item xs={12} md={6} key={idx}>
+                                    <Card sx={{ height: '100%', borderRadius: '24px', borderTop: `6px solid ${color}` }}>
+                                        <CardContent sx={{ p: 4 }}>
+                                            <Typography variant="h5" sx={{ color, fontWeight: 700, mb: 3 }}>{drug.drug_name}</Typography>
+
+                                            {/* Drug Likeness Score */}
+                                            <Box sx={{ mb: 4 }}>
+                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                                                    <Typography variant="subtitle2" color="text.secondary">Drug-Likeness Score</Typography>
+                                                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{likeness}/100</Typography>
+                                                </Box>
+                                                <Box sx={{ height: 10, bgcolor: '#e2e8f0', borderRadius: 5, overflow: 'hidden' }}>
+                                                    <Box sx={{ width: `${likeness}%`, height: '100%', bgcolor: likeness > 70 ? '#10b981' : '#f59e0b' }} />
+                                                </Box>
+                                            </Box>
+
+                                            {/* Lipinski Rules */}
+                                            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2 }}>LIPINSKI'S RULE OF 5</Typography>
+                                            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                                <Box sx={{ px: 2, py: 1, borderRadius: '12px', bgcolor: lipinski.compliant ? '#ecfdf5' : '#fef2f2', color: lipinski.compliant ? '#059669' : '#dc2626', border: `1px solid ${lipinski.compliant ? '#a7f3d0' : '#fecaca'}` }}>
+                                                    <Typography variant="body2" fontWeight="bold">
+                                                        {lipinski.compliant ? '✅ Compliant' : '⚠️ Non-Compliant'}
+                                                    </Typography>
+                                                </Box>
+                                                {lipinski.violations.map(v => (
+                                                    <Box key={v} sx={{ px: 2, py: 1, borderRadius: '12px', bgcolor: '#fff1f2', color: '#e11d48', border: '1px solid #fda4af' }}>
+                                                        <Typography variant="caption" fontWeight="bold">❌ {v}</Typography>
+                                                    </Box>
+                                                ))}
+                                            </Box>
+                                        </CardContent>
+                                    </Card>
+                                </Grid>
+                            );
+                        })}
+                    </Grid>
+
+                    {/* 4. Visualizations */}
+                    <Grid container spacing={4}>
+                        <Grid item xs={12} md={6}>
+                            <Paper sx={{ p: 4, borderRadius: '24px', height: '100%' }}>
+                                <Typography variant="h6" gutterBottom fontWeight="bold">Efficiency Benchmark</Typography>
+                                <ResponsiveContainer width="100%" height={300}>
+                                    <BarChart data={barData}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                        <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                                        <YAxis axisLine={false} tickLine={false} />
+                                        <Tooltip cursor={{ fill: 'transparent' }} />
+                                        <Bar dataKey="efficiency" fill="#1e3a8a" radius={[10, 10, 0, 0]} barSize={60} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </Paper>
                         </Grid>
-                    </Paper>
-                </>
+                        <Grid item xs={12} md={6}>
+                            <Paper sx={{ p: 4, borderRadius: '24px', height: '100%' }}>
+                                <Typography variant="h6" gutterBottom fontWeight="bold">Multi-Parameter Radar</Typography>
+                                <ResponsiveContainer width="100%" height={300}>
+                                    <RadarChart data={radarData}>
+                                        <PolarGrid />
+                                        <PolarAngleAxis dataKey="category" />
+                                        <PolarRadiusAxis angle={30} domain={[0, 150]} />
+                                        <Radar name={comparisonResult.drug1.drug_name} dataKey={comparisonResult.drug1.drug_name} stroke="#1e3a8a" fill="#1e3a8a" fillOpacity={0.4} />
+                                        <Radar name={comparisonResult.drug2.drug_name} dataKey={comparisonResult.drug2.drug_name} stroke="#7c3aed" fill="#7c3aed" fillOpacity={0.4} />
+                                        <Legend />
+                                    </RadarChart>
+                                </ResponsiveContainer>
+                            </Paper>
+                        </Grid>
+                    </Grid>
+                </Box>
             )}
         </Container>
     );
