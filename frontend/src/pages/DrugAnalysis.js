@@ -26,7 +26,6 @@ import {
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import AdvancedAnalysis from '../components/AdvancedAnalysis';
-import PersonaSelector from '../components/PersonaSelector';
 import { TrafficLightScore, PropertyRadarChart, PropertyHeatmap } from '../components/Visualizations';
 import ScoreComparisonChart from '../components/ScoreComparisonChart';
 
@@ -265,13 +264,10 @@ const DrugAnalysis = () => {
                 </Box>
             </Box>
 
-            {/* Persona Selector */}
-            <PersonaSelector selectedPersona={persona} onPersonaChange={setPersona} />
-
             <Grid container spacing={3}>
                 {/* Input Section */}
                 <Grid item xs={12} md={4}>
-                    <Paper sx={{ p: 3, height: '100%' }}>
+                    <Paper sx={{ p: 3 }}>
                         <Typography variant="h6" gutterBottom>
                             Drug Parameters
                         </Typography>

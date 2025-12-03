@@ -40,8 +40,8 @@ export const TrafficLightScore = ({ score, label, description }) => {
 
             <Box
                 sx={{
-                    width: 60,
-                    height: 60,
+                    width: 100,
+                    height: 100,
                     borderRadius: '50%',
                     bgcolor: color,
                     margin: '0 auto',
@@ -52,7 +52,7 @@ export const TrafficLightScore = ({ score, label, description }) => {
                     mb: 1
                 }}
             >
-                <Typography variant="h6" sx={{ color: '#fff', fontWeight: 'bold' }}>
+                <Typography variant="h5" sx={{ color: '#fff', fontWeight: 'bold', fontSize: '0.95rem' }}>
                     {score}
                 </Typography>
             </Box>

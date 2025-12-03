@@ -364,7 +364,7 @@ const CompareTarget = () => {
                                                         '50%': { opacity: 0.7 }
                                                     }
                                                 }}>
-                                                    <Typography sx={{ color: 'white', fontWeight: 900, fontSize: '1.75rem' }}>{eff}%</Typography>
+                                                    <Typography sx={{ color: 'white', fontWeight: 900, fontSize: '1.1rem' }}>{eff}%</Typography>
                                                 </Box>
                                                 <Box>
                                                     <Typography variant="h6" sx={{ fontWeight: 700, color: trafficColor, mb: 0.5 }}>{trafficLabel}</Typography>
